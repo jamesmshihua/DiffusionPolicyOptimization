@@ -1,7 +1,8 @@
 import tensorflow as tf
-import tensorflow_probability as tfp
+# import tensorflow_probability as tfp
 import logging
 import numpy as np
+from collections import namedtuple
 
 log = logging.getLogger(__name__)
 
@@ -190,3 +191,29 @@ class DiffusionModel(tf.Module):
             extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
             + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
+        
+    def get_config(self):
+        # config = super().get_config()
+        # config.update(
+        config = {'network': self.network,  # You may need to handle this separately if it's a custom object
+                  'horizon_steps': self.horizon_steps,
+                  'obs_dim': self.obs_dim,
+                  'action_dim': self.action_dim,
+                  'network_path': None,  # Optionally store or handle this
+                  'device': self.device,
+                  'denoised_clip_value': self.denoised_clip_value,
+                  'randn_clip_value': self.randn_clip_value,
+                  'final_action_clip_value': self.final_action_clip_value,
+                  'eps_clip_value': self.eps_clip_value,
+                  'denoising_steps': self.denoising_steps,
+                  'predict_epsilon': self.predict_epsilon,
+                  'use_ddim': self.use_ddim,
+                #   'ddim_discretize': self.ddim_discretize,
+                  'ddim_steps': self.ddim_steps}
+        # )
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        network = config.pop("network")
+        return cls(network=network, **config)

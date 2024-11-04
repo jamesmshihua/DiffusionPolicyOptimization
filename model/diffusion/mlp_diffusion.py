@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from model.common.mlp import MLP, ResidualMLP
 from model.diffusion.modules import SinusoidalPosEmb
-from model.common.modules import SpatialEmb, RandomShiftsAug
+# from model.common.modules import SpatialEmb, RandomShiftsAug
 
 log = logging.getLogger(__name__)
 
@@ -28,8 +28,8 @@ class DiffusionMLP(tf.Module):
 
         self.time_embedding = tf.keras.Sequential([
             SinusoidalPosEmb(time_dim),
-            tf.keras.layers.Dense(time_dim * 2),
-            tf.keras.layers.Activation("tanh"),  # Assuming Mish can be replaced with tanh for simplicity
+            tf.keras.layers.Dense(time_dim * 2, activation="mish"),
+            # tf.keras.layers.Activation("tanh"),  # Assuming Mish can be replaced with tanh for simplicity
             tf.keras.layers.Dense(time_dim),
         ])
 
@@ -74,6 +74,21 @@ class DiffusionMLP(tf.Module):
         out = self.mlp_mean(x)
         return tf.reshape(out, [B, Ta, Da])
 
+    def get_config(self):
+        config = {
+            # 'action_dim': self.action_dim,  # Action dimension
+            # 'horizon_steps': self.horizon_steps,  # Horizon steps
+            # 'cond_dim': self.cond_dim,  # Conditioning dimension
+            # 'time_dim': self.time_dim,  # Time dimension
+            # 'mlp_dims': self.mlp_dims,  # MLP dimensions
+            # 'cond_mlp_dims': self.cond_mlp_dims,  # Conditional MLP dimensions
+            # 'activation_type': self.activation_type,  # Activation type
+            # 'out_activation_type': self.out_activation_type,  # Output activation type
+            # 'use_layernorm': self.use_layernorm,  # Layer normalization flag
+            # 'residual_style': self.residual_style,  # Residual style flag
+        }
+        return config
+    
 
 # class VisionDiffusionMLP(tf.Module):
 #     """With ViT backbone"""

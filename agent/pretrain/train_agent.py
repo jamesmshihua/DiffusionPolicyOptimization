@@ -63,8 +63,9 @@ class PreTrainAgent(tf.Module):
         # Build model and EMA
         self.model = hydra.utils.instantiate(cfg.model)
         self.ema = EMA(cfg.ema.decay)
+        # self.ema_model = deepcopy(self.model)
         self.ema_model = tf.keras.models.clone_model(self.model)
-        self.ema_model.set_weights(self.model.get_weights())
+        # self.ema_model.set_weights(self.model.get_weights())
 
         # Training parameters
         self.n_epochs = cfg.train.n_epochs

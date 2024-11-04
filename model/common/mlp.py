@@ -4,13 +4,13 @@ import logging
 
 # Define activation dictionary with TensorFlow equivalents
 activation_dict = {
-    "ReLU": tf.keras.layers.ReLU(),
-    "ELU": tf.keras.layers.ELU(),
-    "GELU": tf.keras.layers.GaussianDropout(),
-    "Tanh": tf.keras.layers.Activation("tanh"),
-    "Mish": tf.keras.layers.Activation("mish"),  # Custom Mish may be required
-    "Identity": tf.keras.layers.Activation("linear"),
-    "Softplus": tf.keras.layers.Activation("softplus"),
+    "ReLU": tf.keras.activations.relu,
+    "ELU": tf.keras.activations.elu,
+    "GELU": tf.keras.activations.gelu,
+    "Tanh": tf.keras.activations.tanh,
+    "Mish": tf.keras.activations.mish,
+    "Identity": tf.keras.activations.linear,
+    "Softplus": tf.keras.activations.softplus
 }
 
 class MLP(tf.Module):
