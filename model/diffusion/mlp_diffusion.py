@@ -33,7 +33,7 @@ class DiffusionMLP(tf.Module):
             tf.keras.layers.Dense(time_dim),
         ])
 
-        mlp_class = ResidualMLP if residual_style else MLP
+        mlp_model = ResidualMLP if residual_style else MLP
         if cond_mlp_dims is not None:
             self.cond_mlp = MLP(
                 [cond_dim] + cond_mlp_dims,
@@ -43,7 +43,7 @@ class DiffusionMLP(tf.Module):
             input_dim = time_dim + action_dim * horizon_steps + cond_mlp_dims[-1]
         else:
             input_dim = time_dim + action_dim * horizon_steps + cond_dim
-        self.mlp_mean = mlp_class(
+        self.mlp_mean = mlp_model(
             [input_dim] + mlp_dims + [output_dim],
             activation_type=activation_type,
             out_activation_type=out_activation_type,
@@ -89,6 +89,26 @@ class DiffusionMLP(tf.Module):
         }
         return config
     
+    def get_weights(self):
+        """
+        Returns the weights of all components for copying.
+        """
+        weights = {
+            'time_embedding': self.time_embedding.get_weights(),
+            'mlp_mean': self.mlp_mean.get_weights(),
+        }
+        if hasattr(self, 'cond_mlp'):
+            weights['cond_mlp'] = self.cond_mlp.get_weights()
+        return weights
+
+    def set_weights(self, weights):
+        """
+        Sets the weights of the model components from a dictionary.
+        """
+        self.time_embedding.set_weights(weights['time_embedding'])
+        self.mlp_mean.set_weights(weights['mlp_mean'])
+        if 'cond_mlp' in weights and hasattr(self, 'cond_mlp'):
+            self.cond_mlp.set_weights(weights['cond_mlp'])    
 
 # class VisionDiffusionMLP(tf.Module):
 #     """With ViT backbone"""

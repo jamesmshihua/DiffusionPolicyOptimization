@@ -22,12 +22,21 @@ def to_device(x, device=DEVICE):
     else:
         print(f"Unrecognized type in `to_device`: {type(x)}")
     
-def batch_to_device(batch):
+def batch_to_device(batch, device="/gpu:0"):
     """Convert each field of the batch to TensorFlow tensor on the appropriate device"""
-    vals = [to_device(getattr(batch, field)) for field in batch._fields]
-    # Reconstruct the batch type with converted values
-    return type(batch)(*vals)
+    return {
+        k: to_device(v, device=device) for k, v in batch.items()
+    }
 
+def stitched_sequence_generator(dataset):
+    for idx in range(len(dataset)):
+        yield {
+            "actions": dataset[idx].actions,
+            "conditions": {
+                "state": dataset[idx].conditions["state"]
+            }
+        }
+        
 class EMA(tf.Module):
     """Exponential Moving Average (EMA) implementation in TensorFlow."""
     def __init__(self, decay):
@@ -63,8 +72,8 @@ class PreTrainAgent(tf.Module):
         # Build model and EMA
         self.model = hydra.utils.instantiate(cfg.model)
         self.ema = EMA(cfg.ema.decay)
-        # self.ema_model = deepcopy(self.model)
-        self.ema_model = tf.keras.models.clone_model(self.model)
+        # self.ema_model = tf.keras.models.clone_model(self.model)
+        self.ema_model = hydra.utils.instantiate(cfg.model)
         # self.ema_model.set_weights(self.model.get_weights())
 
         # Training parameters
@@ -82,8 +91,12 @@ class PreTrainAgent(tf.Module):
         self.save_model_freq = cfg.train.save_model_freq
 
         # Dataset and dataloader
-        self.dataset_train = hydra.utils.instantiate(cfg.train_dataset)
-        self.dataloader_train = tf.data.Dataset.from_tensor_slices(self.dataset_train).batch(self.batch_size)
+        stitched_sequence_dataset = hydra.utils.instantiate(cfg.train_dataset)
+        self.dataset_train = tf.data.Dataset.from_generator(
+            lambda: stitched_sequence_generator(stitched_sequence_dataset),
+            output_signature=stitched_sequence_dataset.element_spec
+        )
+        self.dataloader_train = self.dataset_train.batch(self.batch_size)
         self.dataloader_val = None
 
         # Split dataset for validation

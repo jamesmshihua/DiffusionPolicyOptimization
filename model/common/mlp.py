@@ -64,6 +64,19 @@ class MLP(tf.Module):
                 x = tf.concat((x, append), axis=-1)
             x = m(x)
         return x
+    
+    def get_weights(self):
+        """
+        Returns weights of each layer in the MLP as a list of lists.
+        """
+        return [module.get_weights() for module in self.moduleList]
+
+    def set_weights(self, weights):
+        """
+        Sets weights for each layer in the MLP.
+        """
+        for module, weight in zip(self.moduleList, weights):
+            module.set_weights(weight)
 
 
 class ResidualMLP(tf.Module):
@@ -108,6 +121,22 @@ class ResidualMLP(tf.Module):
             x = layer(x)
         return x
 
+    def get_weights(self):
+        """
+        Returns weights of each layer in the ResidualMLP as a list.
+        """
+        return [layer.get_weights() for layer in self.layers if hasattr(layer, "get_weights")]
+
+    def set_weights(self, weights):
+        """
+        Sets weights for each layer in the ResidualMLP.
+        """
+        for layer, weight in zip(self.layers, weights):
+            if hasattr(layer, "set_weights"):
+                layer.set_weights(weight)
+            else:
+                continue
+
 
 class TwoLayerPreActivationResNetLinear(tf.Module):
     def __init__(
@@ -138,3 +167,25 @@ class TwoLayerPreActivationResNetLinear(tf.Module):
             x = self.norm2(x)
         x = self.l2(self.act(x))
         return x + x_input
+
+    def get_weights(self):
+        """
+        Returns weights of l1, l2, norm1, and norm2 if they exist.
+        """
+        weights = [self.l1.get_weights(), self.l2.get_weights()]
+        if hasattr(self, "norm1"):
+            weights.append(self.norm1.get_weights())
+        if hasattr(self, "norm2"):
+            weights.append(self.norm2.get_weights())
+        return weights
+
+    def set_weights(self, weights):
+        """
+        Sets weights for l1, l2, norm1, and norm2 if they exist.
+        """
+        self.l1.set_weights(weights[0])
+        self.l2.set_weights(weights[1])
+        if hasattr(self, "norm1"):
+            self.norm1.set_weights(weights[2])
+        if hasattr(self, "norm2"):
+            self.norm2.set_weights(weights[3])

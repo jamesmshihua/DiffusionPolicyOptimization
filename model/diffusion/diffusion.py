@@ -192,6 +192,12 @@ class DiffusionModel(tf.Module):
             + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
         
+    def set_weights(self, weights):
+        self.network.set_weights(weights)
+        
+    def get_weights(self):
+        return self.network.get_weights()
+        
     def get_config(self):
         # config = super().get_config()
         # config.update(

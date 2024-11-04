@@ -26,8 +26,8 @@ class TrainDiffusionAgent(PreTrainAgent):
             # train
             loss_train_epoch = []
             for batch_train in self.dataloader_train:
-                if self.dataset_train.device == "cpu":
-                    batch_train = batch_to_device(batch_train)
+                # if self.dataset_train.device == "cpu":
+                batch_train = batch_to_device(batch_train)
 
                 self.model.train()
                 loss_train = self.model.loss(*batch_train)

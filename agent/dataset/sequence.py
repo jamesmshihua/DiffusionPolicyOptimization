@@ -103,7 +103,7 @@ class StitchedSequenceDataset(tf.data.Dataset):
                 ]
             )
             conditions["rgb"] = images
-        batch = Batch(actions, conditions)
+        batch = Batch(actions=actions, conditions=conditions)
         return batch
 
     def make_indices(self, traj_lengths, horizon_steps):
@@ -133,3 +133,124 @@ class StitchedSequenceDataset(tf.data.Dataset):
 
     def __len__(self):
         return len(self.indices)
+    
+    @property
+    def element_spec(self):
+        # Define the element specification based on dataset content
+        spec = {
+            "actions": tf.TensorSpec(shape=(self.horizon_steps, self.actions.shape[-1]), dtype=tf.float32),
+            "conditions": {
+                "state": tf.TensorSpec(shape=(self.cond_steps, self.states.shape[-1]), dtype=tf.float32),
+            }
+        }
+        if self.use_img:
+            spec["conditions"]["rgb"] = tf.TensorSpec(shape=(self.img_cond_steps, *self.images.shape[1:]), dtype=tf.float32)
+        return spec
+    
+    def _inputs(self):
+        return []
+
+
+
+class StitchedSequenceQLearningDataset(StitchedSequenceDataset):
+    def __init__(
+        self,
+        dataset_path,
+        max_n_episodes=10000,
+        discount_factor=1.0,
+        device="GPU",
+        get_mc_return=False,
+        **kwargs,
+    ):
+        super().__init__()
+        
+        if dataset_path.endswith(".npz"):
+            dataset = np.load(dataset_path, allow_pickle=False)
+        elif dataset_path.endswith(".pkl"):
+            with open(dataset_path, "rb") as f:
+                dataset = pickle.load(f)
+        else:
+            raise ValueError(f"Unsupported file format: {dataset_path}")
+        
+        traj_lengths = dataset["traj_lengths"][:max_n_episodes]
+        total_num_steps = np.sum(traj_lengths)
+
+        # Discount factor
+        self.discount_factor = discount_factor
+
+        # Rewards and dones (terminals)
+        self.rewards = tf.convert_to_tensor(dataset["rewards"][:total_num_steps], dtype=tf.float32)
+        log.info(f"Rewards shape/type: {self.rewards.shape}, {self.rewards.dtype}")
+        self.dones = tf.convert_to_tensor(dataset["terminals"][:total_num_steps], dtype=tf.float32)
+        log.info(f"Dones shape/type: {self.dones.shape}, {self.dones.dtype}")
+
+        self.indices = self.make_indices(traj_lengths)
+        self.get_mc_return = get_mc_return
+
+        # Compute discounted reward-to-go for each trajectory
+        if get_mc_return:
+            self.reward_to_go = tf.zeros_like(self.rewards)
+            cumulative_traj_length = np.cumsum(traj_lengths)
+            prev_traj_length = 0
+            for i, traj_length in tqdm(
+                enumerate(cumulative_traj_length), desc="Computing reward-to-go"
+            ):
+                traj_rewards = self.rewards[prev_traj_length:traj_length]
+                returns = tf.zeros_like(traj_rewards)
+                prev_return = 0
+                for t in range(len(traj_rewards)):
+                    returns = (
+                        traj_rewards[-t - 1] + self.discount_factor * prev_return
+                    )
+                    prev_return = returns
+                self.reward_to_go[prev_traj_length:traj_length] = returns
+                prev_traj_length = traj_length
+            log.info(f"Computed reward-to-go for each trajectory.")
+
+    def make_indices(self, traj_lengths):
+        """
+        Generates sampling indices from the dataset; each index maps to a datapoint.
+        """
+        indices = []
+        cur_traj_index = 0
+        for traj_length in traj_lengths:
+            max_start = cur_traj_index + traj_length
+            if not self.dones[cur_traj_index + traj_length - 1]:  # truncation
+                max_start -= 1
+            indices += [
+                (i, i - cur_traj_index) for i in range(cur_traj_index, max_start)
+            ]
+            cur_traj_index += traj_length
+        return indices
+    
+    def __getitem__(self, idx):
+        start, _ = self.indices[idx]
+        end = start + 1
+        actions = self.actions[start:end]
+        rewards = self.rewards[start:end]
+        dones = self.dones[start:end]
+        reward_to_gos = self.reward_to_go[start:end] if self.get_mc_return else tf.zeros_like(rewards)
+
+        batch = {
+            "states": self.states[start:end],
+            "actions": actions,
+            "rewards": rewards,
+            "dones": dones,
+            "reward_to_go": reward_to_gos,
+        }
+        return batch
+
+    @property
+    def element_spec(self):
+        # Define the element specification based on dataset content
+        return {
+            "states": tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            "actions": tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            "rewards": tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            "dones": tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            "reward_to_go": tf.TensorSpec(shape=(None,), dtype=tf.float32),
+        }
+        
+    def _inputs(self):
+        # Returns an empty list if no additional inputs are required
+        return []
