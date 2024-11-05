@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
+            "name": "Python Debugger: Script with Arguments",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "program": "script/run.py",
             "console": "integratedTerminal",
             "args": [
                 "--config-name=pre_diffusion_mlp",

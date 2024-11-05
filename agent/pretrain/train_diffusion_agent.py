@@ -6,6 +6,7 @@ Pre-training diffusion policy
 import logging
 import wandb
 import numpy as np
+import tensorflow as tf
 
 log = logging.getLogger(__name__)
 from util.timer import Timer
@@ -18,37 +19,37 @@ class TrainDiffusionAgent(PreTrainAgent):
         super().__init__(cfg)
 
     def run(self):
-
         timer = Timer()
         self.epoch = 1
+        
         for _ in range(self.n_epochs):
-
             # train
             loss_train_epoch = []
             for batch_train in self.dataloader_train:
                 # if self.dataset_train.device == "cpu":
                 batch_train = batch_to_device(batch_train)
 
-                self.model.train()
-                loss_train = self.model.loss(*batch_train)
-                loss_train.backward()
-                loss_train_epoch.append(loss_train.item())
-
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+                with tf.GradientTape() as tape:
+                    loss_train = self.model.loss(**batch_train)
+                    
+                gradients = tape.gradient(loss_train, self.model.network.trainable_variables)
+                self.optimizer.apply_gradients(
+                    zip(gradients, self.model.network.trainable_variables)
+                )
+                loss_train_epoch.append(loss_train.numpy())
+                
             loss_train = np.mean(loss_train_epoch)
 
             # validate
             loss_val_epoch = []
             if self.dataloader_val is not None and self.epoch % self.val_freq == 0:
-                self.model.eval()
                 for batch_val in self.dataloader_val:
                     if self.dataset_val.device == "cpu":
                         batch_val = batch_to_device(batch_val)
-                    loss_val, infos_val = self.model.loss(*batch_val)
-                    loss_val_epoch.append(loss_val.item())
-                self.model.train()
-            loss_val = np.mean(loss_val_epoch) if len(loss_val_epoch) > 0 else None
+                    loss_val, infos_val = self.model.loss(**batch_val)
+                    loss_val_epoch.append(loss_val.numpy())
+
+            loss_val = np.mean(loss_val_epoch) if loss_val_epoch else None
 
             # update lr
             self.lr_scheduler.step()

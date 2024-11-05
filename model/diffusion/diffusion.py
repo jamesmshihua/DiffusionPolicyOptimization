@@ -169,10 +169,12 @@ class DiffusionModel(tf.Module):
         
         return Sample(x, None)
 
-    def loss(self, x, *args):
-        batch_size = tf.shape(x)[0]
+    def loss(self, **kwargs):
+        actions = kwargs.get("actions")
+        cond = kwargs.get("conditions")
+        batch_size = tf.shape(actions)[0]
         t = tf.random.uniform((batch_size,), minval=0, maxval=self.denoising_steps, dtype=tf.int32)
-        return self.p_losses(x, *args, t)
+        return self.p_losses(actions, cond, t)
 
     def p_losses(self, x_start, cond, t):
         noise = tf.random.normal(tf.shape(x_start))

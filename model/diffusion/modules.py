@@ -9,7 +9,7 @@ class SinusoidalPosEmb(tf.keras.layers.Layer):
     def call(self, x):
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
-        emb = tf.exp(tf.range(half_dim) * -emb)
+        emb = tf.exp(tf.range(half_dim, dtype=tf.float32) * -emb)
         emb = x[:, None] * emb[None, :]
         emb = tf.concat([tf.sin(emb), tf.cos(emb)], axis=-1)
         return emb

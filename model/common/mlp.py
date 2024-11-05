@@ -21,6 +21,15 @@ activation_dict = {
     "Identity": tf.keras.layers.Activation("linear"),
     "Softplus": tf.keras.layers.Softplus(),
 }
+# activation_dict = {
+#     "ReLU": tf.keras.layers.ReLU(),
+#     "ELU": tf.keras.layers.ELU(),
+#     "GELU": tf.keras.layers.GELU(),
+#     "Tanh": tf.keras.layers.Activation("tanh"),
+#     "Mish": tf.keras.layers.Activation("tanh"),  # TensorFlow doesn’t have native Mish; consider alternatives
+#     "Identity": tf.keras.layers.Activation("linear"),
+#     "Softplus": tf.keras.layers.Softplus(),
+# }
 
 
 class MLP(tf.keras.Model):
