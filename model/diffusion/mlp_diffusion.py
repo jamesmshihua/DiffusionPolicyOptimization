@@ -9,7 +9,7 @@ from model.diffusion.modules import SinusoidalPosEmb
 
 log = logging.getLogger(__name__)
 
-class DiffusionMLP(tf.Module):
+class DiffusionMLP(tf.keras.Model):
     def __init__(
         self,
         action_dim,
@@ -51,7 +51,7 @@ class DiffusionMLP(tf.Module):
         )
         self.time_dim = time_dim
 
-    def __call__(self, x, time, cond, **kwargs):
+    def call(self, x, time, cond, **kwargs):
         B, Ta, Da = x.shape
 
         # flatten chunk
@@ -110,7 +110,7 @@ class DiffusionMLP(tf.Module):
         if 'cond_mlp' in weights and hasattr(self, 'cond_mlp'):
             self.cond_mlp.set_weights(weights['cond_mlp'])    
 
-# class VisionDiffusionMLP(tf.Module):
+# class VisionDiffusionMLP(tf.keras.Model):
 #     """With ViT backbone"""
 
 #     def __init__(
@@ -189,7 +189,7 @@ class DiffusionMLP(tf.Module):
 #         )
 #         self.time_dim = time_dim
 
-#     def __call__(self, x, time, cond, **kwargs):
+#     def call(self, x, time, cond, **kwargs):
 #         B, Ta, Da = x.shape
 #         _, T_rgb, C, H, W = cond["rgb"].shape
 

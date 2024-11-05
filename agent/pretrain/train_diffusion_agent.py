@@ -18,19 +18,18 @@ class TrainDiffusionAgent(PreTrainAgent):
         super().__init__(cfg)
 
     def run(self):
-
         timer = Timer()
         self.epoch = 1
+        
         for _ in range(self.n_epochs):
-
             # train
             loss_train_epoch = []
             for batch_train in self.dataloader_train:
                 # if self.dataset_train.device == "cpu":
                 batch_train = batch_to_device(batch_train)
 
-                self.model.train()
-                loss_train = self.model.loss(*batch_train)
+                # self.model.train()
+                loss_train = self.model.loss(**batch_train)
                 loss_train.backward()
                 loss_train_epoch.append(loss_train.item())
 
