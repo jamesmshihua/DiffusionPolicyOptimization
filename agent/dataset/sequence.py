@@ -26,6 +26,7 @@ class StitchedSequenceDataset(tf.keras.utils.Sequence):
             max_n_episodes=10000,
             use_img=False,
             batch_size=32,
+            device="GPU:0"
     ):
         assert img_cond_steps <= cond_steps, "consider using more cond_steps than img_cond_steps"
         self.horizon_steps = horizon_steps
@@ -52,6 +53,7 @@ class StitchedSequenceDataset(tf.keras.utils.Sequence):
         self.indices = self.make_indices(traj_lengths, horizon_steps)
 
         # Extract states and actions up to max_n_episodes
+        # if "GPU" in device.upper():
         self.states = tf.convert_to_tensor(dataset["states"][:total_num_steps], dtype=tf.float32)
         self.actions = tf.convert_to_tensor(dataset["actions"][:total_num_steps], dtype=tf.float32)
 
@@ -129,7 +131,14 @@ class StitchedSequenceDataset(tf.keras.utils.Sequence):
             spec["conditions"]["rgb"] = tf.TensorSpec(shape=(self.img_cond_steps, *self.images.shape[1:]),
                                                       dtype=tf.float32)
         return spec
-
+        # actions_spec = tf.TensorSpec(shape=(self.horizon_steps, self.actions.shape[-1]), dtype=tf.float32)
+        # conditions_spec =  {
+        #     "state": tf.TensorSpec(shape=(self.cond_steps, self.states.shape[-1]), dtype=tf.float32),
+        # }
+        # if self.use_img:
+        #     conditions_spec["rgb"] = tf.TensorSpec(shape=(self.img_cond_steps, *self.images.shape[1:]), dtype=tf.float32)
+        # return (actions_spec, conditions_spec)
+    
     def _inputs(self):
         return []
 
@@ -231,10 +240,8 @@ class StitchedSequenceQLearningDataset(StitchedSequenceDataset):
         # Account for action horizon
         if idx < len(self.indices) - self.horizon_steps:
             next_states = self.states[
-                          (start - num_before_start + self.horizon_steps): start
-                                                                           + 1
-                                                                           + self.horizon_steps
-                          ]  # even if this uses the first state(s) of the next episode, done=True will prevent bootstrapping. We have already filtered out cases where done=False but end of episode (truncation).
+                (start - num_before_start + self.horizon_steps): start + 1 + self.horizon_steps
+            ]
         else:
             # prevents indexing error, but ignored since done=True
             next_states = tf.zeros_like(states)

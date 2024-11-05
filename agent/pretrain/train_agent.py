@@ -36,6 +36,7 @@ def stitched_sequence_generator(dataset):
                 "state": dataset[idx].conditions["state"]
             }
         }
+        # yield dataset[idx]
         
 class EMA(tf.Module):
     """Exponential Moving Average (EMA) implementation in TensorFlow."""
