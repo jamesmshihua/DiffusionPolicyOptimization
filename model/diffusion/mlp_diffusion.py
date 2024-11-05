@@ -65,6 +65,7 @@ class DiffusionMLP(tf.keras.Model):
             state = self.cond_mlp(state)
 
         # append time and cond
+        # print(tf.shape(time))
         time = tf.reshape(time, [B, 1])
         time_emb = self.time_embedding(time)
         time_emb = tf.reshape(time_emb, [B, self.time_dim])

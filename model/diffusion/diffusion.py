@@ -172,7 +172,7 @@ class DiffusionModel(tf.Module):
     def loss(self, **kwargs):
         actions = kwargs.get("actions")
         cond = kwargs.get("conditions")
-        batch_size = tf.shape(actions)[0]
+        batch_size = int(tf.shape(actions).numpy()[0])
         t = tf.random.uniform((batch_size,), minval=0, maxval=self.denoising_steps, dtype=tf.int32)
         return self.p_losses(actions, cond, t)
 

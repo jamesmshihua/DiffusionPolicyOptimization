@@ -1,5 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import logging
+log = logging.getLogger(__name__)
+
 
 def cosine_beta_schedule(timesteps, s=0.008, dtype=tf.float32):
     """
@@ -15,7 +18,8 @@ def cosine_beta_schedule(timesteps, s=0.008, dtype=tf.float32):
 
 
 def extract(a, t, x_shape):
-    b = int(tf.shape(t).numpy()[0])  # Get batch size
+    b = t.get_shape().as_list()[0]  # Get batch size
+    # log.info(f"Reshape size {[b] + [1] * (len(x_shape) - 1)}")
     out = tf.gather(a, t, axis=-1)
     return tf.reshape(out, [b] + [1] * (len(x_shape) - 1))
 
