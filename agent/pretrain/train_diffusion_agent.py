@@ -29,7 +29,15 @@ class TrainDiffusionAgent(PreTrainAgent):
             for batch_train in self.dataloader_train:
                 # if self.dataset_train.device == "cpu":
                 batch_train = batch_to_device(batch_train)
-
+                tf.debugging.assert_shapes(
+                    [(batch_train["actions"],(None,4,3)),],message="Shape Mismatch"
+                )
+                tf.debugging.assert_shapes(
+                    [
+                        (batch_train["actions"],(None,4,3)),
+                        (batch_train["conditions"]["state"],(None,1,11))
+                    ],message="Shape Mismatch"
+                )
                 with tf.GradientTape() as tape:
                     loss_train = self.model.loss(**batch_train)
                     
@@ -55,7 +63,7 @@ class TrainDiffusionAgent(PreTrainAgent):
             loss_val = np.mean(loss_val_epoch) if loss_val_epoch else None
 
             # update lr
-            self.lr_scheduler.step()
+            # self.lr_scheduler.step()
 
             # update ema
             if self.epoch % self.update_ema_freq == 0:

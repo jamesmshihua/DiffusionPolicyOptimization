@@ -30,13 +30,14 @@ def batch_to_device(batch, device="/gpu:0"):
 
 def stitched_sequence_generator(dataset):
     for idx in range(len(dataset)):
-        yield {
-            "actions": dataset[idx].actions,
-            "conditions": {
-                "state": dataset[idx].conditions["state"]
-            }
-        }
-        # yield dataset[idx]
+        yield dataset[idx]
+        # sp = dataset[idx]
+        # yield {
+        #     "actions": sp.actions,
+        #     "conditions": {
+        #         "state": sp.conditions["state"]
+        #     }
+        # }
         
 class EMA(tf.Module):
     """Exponential Moving Average (EMA) implementation in TensorFlow."""
@@ -95,7 +96,7 @@ class PreTrainAgent(tf.Module):
         stitched_sequence_dataset = hydra.utils.instantiate(cfg.train_dataset)
         self.dataset_train = tf.data.Dataset.from_generator(
             lambda: stitched_sequence_generator(stitched_sequence_dataset),
-            output_signature=stitched_sequence_dataset.element_spec
+            output_signature=stitched_sequence_dataset.element_spec()
         )
         self.dataloader_train = self.dataset_train.batch(self.batch_size)
         self.dataloader_val = None
@@ -108,16 +109,16 @@ class PreTrainAgent(tf.Module):
             self.dataloader_val = tf.data.Dataset.from_tensor_slices(self.dataset_val).batch(self.batch_size)
 
         # Optimizer and learning rate scheduler
-        self.optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=cfg.train.learning_rate,
-            weight_decay=cfg.train.weight_decay
-        )
         self.lr_scheduler = tf.keras.optimizers.schedules.CosineDecayRestarts(
             initial_learning_rate=cfg.train.learning_rate,
             first_decay_steps=cfg.train.lr_scheduler.first_cycle_steps,
             t_mul=1.0,
             m_mul=1.0,
             alpha=cfg.train.lr_scheduler.min_lr / cfg.train.learning_rate
+        )
+        self.optimizer = tf.keras.optimizers.AdamW(
+            learning_rate=self.lr_scheduler,
+            weight_decay=cfg.train.weight_decay
         )
 
         self.reset_parameters()

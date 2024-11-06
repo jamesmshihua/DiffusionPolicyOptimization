@@ -90,26 +90,26 @@ class DiffusionMLP(tf.keras.Model):
         }
         return config
     
-    def get_weights(self):
-        """
-        Returns the weights of all components for copying.
-        """
-        weights = {
-            'time_embedding': self.time_embedding.get_weights(),
-            'mlp_mean': self.mlp_mean.get_weights(),
-        }
-        if hasattr(self, 'cond_mlp'):
-            weights['cond_mlp'] = self.cond_mlp.get_weights()
-        return weights
+    # def get_weights(self):
+    #     """
+    #     Returns the weights of all components for copying.
+    #     """
+    #     weights = {
+    #         'time_embedding': self.time_embedding.get_weights(),
+    #         'mlp_mean': self.mlp_mean.get_weights(),
+    #     }
+    #     if hasattr(self, 'cond_mlp'):
+    #         weights['cond_mlp'] = self.cond_mlp.get_weights()
+    #     return weights
 
-    def set_weights(self, weights):
-        """
-        Sets the weights of the model components from a dictionary.
-        """
-        self.time_embedding.set_weights(weights['time_embedding'])
-        self.mlp_mean.set_weights(weights['mlp_mean'])
-        if 'cond_mlp' in weights and hasattr(self, 'cond_mlp'):
-            self.cond_mlp.set_weights(weights['cond_mlp'])    
+    # def set_weights(self, weights):
+    #     """
+    #     Sets the weights of the model components from a dictionary.
+    #     """
+    #     self.time_embedding.set_weights(weights['time_embedding'])
+    #     self.mlp_mean.set_weights(weights['mlp_mean'])
+    #     if 'cond_mlp' in weights and hasattr(self, 'cond_mlp'):
+    #         self.cond_mlp.set_weights(weights['cond_mlp'])    
 
 # class VisionDiffusionMLP(tf.keras.Model):
 #     """With ViT backbone"""
