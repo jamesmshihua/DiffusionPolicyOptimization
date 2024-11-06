@@ -25,6 +25,7 @@ class TrainDiffusionAgent(PreTrainAgent):
         for _ in range(self.n_epochs):
             # train
             loss_train_epoch = []
+            n_batch = 0
             for batch_train in self.dataloader_train:
                 # if self.dataset_train.device == "cpu":
                 batch_train = batch_to_device(batch_train)
@@ -37,6 +38,8 @@ class TrainDiffusionAgent(PreTrainAgent):
                     zip(gradients, self.model.network.trainable_variables)
                 )
                 loss_train_epoch.append(loss_train.numpy())
+                n_batch += 1
+                log.info(f"Epoch {self.epoch}, Batch {n_batch}")
                 
             loss_train = np.mean(loss_train_epoch)
 
