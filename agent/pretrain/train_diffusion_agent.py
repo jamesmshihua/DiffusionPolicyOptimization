@@ -20,7 +20,33 @@ class TrainDiffusionAgent(PreTrainAgent):
 
     def run(self):
         timer = Timer()
+        # #modify
+        # self.model.network.compile(
+        #     optimizer=self.optimizer,
+        #     loss=self.model.loss
+        # )
+        # callbacks = [
+        #     tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda:self.step_ema),
+        #     tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda:self.save_model),
+        #     tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda:
+        #         wandb.log(
+        #             {"loss - train": loss_train,},
+        #             step=self.epoch,
+        #             commit=True,
+        #         )
+        #     )
+        # ]
+        # history = self.model.network.fit(
+        #     x=self.dataset_train,
+        #     epochs=self.n_epochs,
+        #     batch_size=2048,
+        #     callbacks=callbacks
+        # )
+        # #modify
         self.epoch = 1
+        for dummy_batch in self.dataloader_train:
+            self.ema_model.loss(**dummy_batch)
+            break
         
         for _ in range(self.n_epochs):
             # train
@@ -29,15 +55,6 @@ class TrainDiffusionAgent(PreTrainAgent):
             for batch_train in self.dataloader_train:
                 # if self.dataset_train.device == "cpu":
                 batch_train = batch_to_device(batch_train)
-                tf.debugging.assert_shapes(
-                    [(batch_train["actions"],(None,4,3)),],message="Shape Mismatch"
-                )
-                tf.debugging.assert_shapes(
-                    [
-                        (batch_train["actions"],(None,4,3)),
-                        (batch_train["conditions"]["state"],(None,1,11))
-                    ],message="Shape Mismatch"
-                )
                 with tf.GradientTape() as tape:
                     loss_train = self.model.loss(**batch_train)
                     
@@ -48,6 +65,8 @@ class TrainDiffusionAgent(PreTrainAgent):
                 loss_train_epoch.append(loss_train.numpy())
                 n_batch += 1
                 log.info(f"Epoch {self.epoch}, Batch {n_batch}")
+                # if n_batch > 10:
+                #     break
                 
             loss_train = np.mean(loss_train_epoch)
 

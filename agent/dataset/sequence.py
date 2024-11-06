@@ -72,12 +72,13 @@ class StitchedSequenceDataset(tf.data.Dataset):
         self.indices = self.make_indices(traj_lengths, horizon_steps)
 
         # Extract states and actions up to max_n_episodes
-        self.states = (
-            tf.convert_to_tensor(dataset["states"][:total_num_steps], dtype=tf.float32)
-        )  # (total_num_steps, obs_dim)
-        self.actions = (
-            tf.convert_to_tensor(dataset["actions"][:total_num_steps], dtype=tf.float32)
-        )  # (total_num_steps, action_dim)
+        with tf.device("cpu"):
+            self.states = (
+                tf.convert_to_tensor(dataset["states"][:total_num_steps], dtype=tf.float32)
+            )  # (total_num_steps, obs_dim)
+            self.actions = (
+                tf.convert_to_tensor(dataset["actions"][:total_num_steps], dtype=tf.float32)
+            )  # (total_num_steps, action_dim)
         log.info(f"Loaded dataset from {dataset_path}")
         log.info(f"Number of episodes: {min(max_n_episodes, len(traj_lengths))}")
         log.info(f"States shape/type: {self.states.shape, self.states.dtype}")
@@ -94,8 +95,8 @@ class StitchedSequenceDataset(tf.data.Dataset):
         """
         start, num_before_start = self.indices[idx]
         end = start + self.horizon_steps
-        states = self.states[(start - num_before_start) : (start + 1)]
-        actions = self.actions[start:end]
+        states = self.states[(start - num_before_start):(start + 1),:]
+        actions = self.actions[start:end,:]
         states = tf.stack(
             [
                 states[max(num_before_start - t, 0)]
@@ -112,8 +113,14 @@ class StitchedSequenceDataset(tf.data.Dataset):
                 ]
             )
             conditions["rgb"] = images
-        # batch = Batch(actions, conditions)
-        # return batch
+            
+        tf.debugging.assert_shapes(
+            [
+                (actions,(4,3)),
+                (states,(1,11))
+            ],message="Shape Mismatch"
+        )
+        
         return {"actions": actions, "conditions": {"state": states}}
 
     def make_indices(self, traj_lengths, horizon_steps):
@@ -152,15 +159,15 @@ class StitchedSequenceDataset(tf.data.Dataset):
             spec["conditions"]["rgb"] = tf.TypeSpec(shape=(self.img_cond_steps, *self.images.get_shape()[1:]), dtype=tf.float32)
         return spec
     
-    def _generator(self):
-        for idx in range(len(self.indices)):
-            sp = self[idx]
-            yield {
-                "actions": sp.actions,
-                "conditions": {
-                    "state": sp.conditions["state"]
-                }
-            }
+    # def _generator(self):
+    #     for idx in range(len(self.indices)):
+    #         sp = self[idx]
+    #         yield {
+    #             "actions": sp.actions,
+    #             "conditions": {
+    #                 "state": sp.conditions["state"]
+    #             }
+    #         }
     
     def __len__(self):
         return len(self.indices)
