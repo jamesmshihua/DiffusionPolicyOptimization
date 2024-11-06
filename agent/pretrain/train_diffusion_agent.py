@@ -54,6 +54,9 @@ class TrainDiffusionAgent(PreTrainAgent):
 
             loss_val = np.mean(loss_val_epoch) if loss_val_epoch else None
 
+            # update lr
+            self.lr_scheduler.step()
+
             # update ema
             if self.epoch % self.update_ema_freq == 0:
                 self.step_ema()

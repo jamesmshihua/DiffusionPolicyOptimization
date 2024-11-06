@@ -29,7 +29,7 @@ class StitchedSequenceDataset(tf.keras.utils.Sequence):
     Each sample is a namedtuple of (1) chunked actions and (2) a list (obs timesteps) of dictionary with keys states and images.
 
     """
-    def __new__(
+    def __init__(
             self,
             dataset_path,
             horizon_steps=64,
@@ -76,11 +76,6 @@ class StitchedSequenceDataset(tf.keras.utils.Sequence):
         if self.use_img:
             self.images = tf.convert_to_tensor(dataset["images"][:total_num_steps], dtype=tf.float32)
             log.info(f"Images shape/type: {self.images.shape, self.images.dtype}")
-
-        return tf.data.Dataset.from_generator(
-            self._generator,
-            output_signature=self.element_spec,
-        )
 
     def __getitem__(self, idx):
         """
@@ -150,16 +145,14 @@ class StitchedSequenceDataset(tf.keras.utils.Sequence):
             spec["conditions"]["rgb"] = tf.TensorSpec(shape=(self.img_cond_steps, *self.images.shape[1:]),
                                                       dtype=tf.float32)
         return spec
-
-    def _generator(self):
-        for idx in range(len(self)):
-            yield {
-                "actions": self[idx].actions,
-                "conditions": {
-                    "state": self[idx].conditions["state"]
-                }
-            }
-
+        # actions_spec = tf.TensorSpec(shape=(self.horizon_steps, self.actions.shape[-1]), dtype=tf.float32)
+        # conditions_spec =  {
+        #     "state": tf.TensorSpec(shape=(self.cond_steps, self.states.shape[-1]), dtype=tf.float32),
+        # }
+        # if self.use_img:
+        #     conditions_spec["rgb"] = tf.TensorSpec(shape=(self.img_cond_steps, *self.images.shape[1:]), dtype=tf.float32)
+        # return (actions_spec, conditions_spec)
+    
     def _inputs(self):
         return []
 

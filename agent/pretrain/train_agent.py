@@ -12,8 +12,7 @@ log = logging.getLogger(__name__)
 
 # Device setting
 DEVICE = "/gpu:0" if tf.config.list_physical_devices('GPU') else "/cpu:0"
-
-
+    
 def to_device(x, device=DEVICE):
     if tf.is_tensor(x):
         with tf.device(device):
@@ -22,40 +21,35 @@ def to_device(x, device=DEVICE):
         return {k: to_device(v, device) for k, v in x.items()}
     else:
         print(f"Unrecognized type in `to_device`: {type(x)}")
-
-
+    
 def batch_to_device(batch, device="/gpu:0"):
+    """Convert each field of the batch to TensorFlow tensor on the appropriate device"""
     return {
         k: to_device(v, device=device) for k, v in batch.items()
     }
 
-
-# def stitched_sequence_generator(dataset):
-#     for idx in range(len(dataset)):
-#         yield {
-#             "actions": dataset[idx].actions,
-#             "conditions": {
-#                 "state": dataset[idx].conditions["state"]
-#             }
-#         }
-
-
+def stitched_sequence_generator(dataset):
+    for idx in range(len(dataset)):
+        yield {
+            "actions": dataset[idx].actions,
+            "conditions": {
+                "state": dataset[idx].conditions["state"]
+            }
+        }
+        # yield dataset[idx]
+        
 class EMA(tf.Module):
-    """
-    Empirical moving average
-    """
-
-    def __init__(self, cfg):
+    """Exponential Moving Average (EMA) implementation in TensorFlow."""
+    def __init__(self, decay):
         super().__init__()
-        self.beta = cfg.decay
+        self.decay = decay
 
     def update_model_average(self, ma_model, current_model):
         for ma_var, cur_var in zip(ma_model.trainable_variables, current_model.trainable_variables):
             ma_var.assign(self.update_average(ma_var, cur_var))
 
     def update_average(self, old, new):
-        return old * self.beta + (1 - self.beta) * new
-
+        return old * self.decay + (1 - self.decay) * new
 
 class PreTrainAgent(tf.Module):
     def __init__(self, cfg):
@@ -78,8 +72,10 @@ class PreTrainAgent(tf.Module):
 
         # Build model and EMA
         self.model = hydra.utils.instantiate(cfg.model)
-        self.ema = EMA(cfg.ema)
+        self.ema = EMA(cfg.ema.decay)
+        # self.ema_model = tf.keras.models.clone_model(self.model)
         self.ema_model = hydra.utils.instantiate(cfg.model)
+        # self.ema_model.set_weights(self.model.get_weights())
 
         # Training parameters
         self.n_epochs = cfg.train.n_epochs
@@ -96,12 +92,11 @@ class PreTrainAgent(tf.Module):
         self.save_model_freq = cfg.train.save_model_freq
 
         # Dataset and dataloader
-        # stitched_sequence_dataset = hydra.utils.instantiate(cfg.train_dataset)
-        # self.dataset_train = tf.data.Dataset.from_generator(
-        #     lambda: stitched_sequence_generator(stitched_sequence_dataset),
-        #     output_signature=stitched_sequence_dataset.element_spec
-        # )
-        self.dataset_train = hydra.utils.instantiate(cfg.train_dataset)
+        stitched_sequence_dataset = hydra.utils.instantiate(cfg.train_dataset)
+        self.dataset_train = tf.data.Dataset.from_generator(
+            lambda: stitched_sequence_generator(stitched_sequence_dataset),
+            output_signature=stitched_sequence_dataset.element_spec
+        )
         self.dataloader_train = self.dataset_train.batch(self.batch_size)
         self.dataloader_val = None
 
@@ -109,21 +104,20 @@ class PreTrainAgent(tf.Module):
         if "train_split" in cfg.train and cfg.train.train_split < 1:
             train_size = int(cfg.train.train_split * len(self.dataset_train))
             val_size = len(self.dataset_train) - train_size
-            self.dataset_train, self.dataset_val = tf.keras.utils.split_dataset(self.dataset_train,
-                                                                                [train_size, val_size])
+            self.dataset_train, self.dataset_val = tf.keras.utils.split_dataset(self.dataset_train, [train_size, val_size])
             self.dataloader_val = tf.data.Dataset.from_tensor_slices(self.dataset_val).batch(self.batch_size)
 
         # Optimizer and learning rate scheduler
+        self.optimizer = tf.keras.optimizers.AdamW(
+            learning_rate=cfg.train.learning_rate,
+            weight_decay=cfg.train.weight_decay
+        )
         self.lr_scheduler = tf.keras.optimizers.schedules.CosineDecayRestarts(
             initial_learning_rate=cfg.train.learning_rate,
             first_decay_steps=cfg.train.lr_scheduler.first_cycle_steps,
             t_mul=1.0,
             m_mul=1.0,
             alpha=cfg.train.lr_scheduler.min_lr / cfg.train.learning_rate
-        )
-        self.optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=self.lr_scheduler,
-            weight_decay=cfg.train.weight_decay
         )
 
         self.reset_parameters()
