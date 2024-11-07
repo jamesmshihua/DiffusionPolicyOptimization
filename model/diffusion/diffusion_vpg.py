@@ -16,7 +16,15 @@ class VPGDiffusion(DiffusionModel):
         learn_eta=False,
         **kwargs,
     ):
-        super().__init__(network=actor, **kwargs)
+        super().__init__(
+            network=actor,
+            network_path=network_path,
+            **kwargs
+        )
+        
+        assert ft_denoising_steps <= self.ft_denoising_steps
+        assert ft_denoising_steps <= self.ddim_steps if self.use_ddim else True
+        assert not (learn_eta and not self.use_ddim), "Cannot learn eta with DDPM."
         
         # Fine-tuning denoising steps
         self.ft_denoising_steps = ft_denoising_steps

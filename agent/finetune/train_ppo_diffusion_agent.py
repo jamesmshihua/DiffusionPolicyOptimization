@@ -2,7 +2,6 @@ import tensorflow as tf
 import numpy as np
 import os
 import logging
-from tensorflow.keras.optimizers.schedules import CosineDecay
 
 class TrainPPODiffusionAgent(tf.Module):
     def __init__(self, cfg, model):
@@ -23,7 +22,7 @@ class TrainPPODiffusionAgent(tf.Module):
             self.eta_optimizer = tf.optimizers.Adam(
                 learning_rate=cfg.train.eta_lr
             )
-            self.eta_lr_schedule = CosineDecay(
+            self.eta_lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
                 initial_learning_rate=cfg.train.eta_lr,
                 decay_steps=cfg.train.eta_decay_steps,
                 alpha=cfg.train.eta_lr_decay_alpha
