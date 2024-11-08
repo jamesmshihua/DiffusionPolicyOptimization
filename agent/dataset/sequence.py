@@ -150,9 +150,9 @@ class StitchedSequenceDataset(tf.data.Dataset):
     
     def element_spec(self):
         spec = {
-            "actions": tf.TensorSpec(shape=(self.horizon_steps, self.actions.get_shape()[-1]), dtype=tf.float32),
+            "actions": tf.TensorSpec(shape=(4, 3), dtype=tf.float32, name=None),
             "conditions": {
-                "state": tf.TensorSpec(shape=(self.cond_steps, self.states.get_shape()[-1]), dtype=tf.float32),
+                "state": tf.TensorSpec(shape=(1, 11), dtype=tf.float32, name=None),
             }
         }
         if self.use_img:
