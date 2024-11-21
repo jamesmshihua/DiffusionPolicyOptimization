@@ -38,9 +38,9 @@ env:
       reset_within_step: True
 
 wandb:
-  entity: ${oc.env:DPPO_WANDB_ENTITY}
-  project: gym-${env_name}-finetune
-  run: ${now:%H-%M-%S}_${name}
+#  entity: ${oc.env:DPPO_WANDB_ENTITY}
+#  project: gym-${env_name}-finetune
+#  run: ${now:%H-%M-%S}_${name}
 
 train:
   n_train_itr: 1000

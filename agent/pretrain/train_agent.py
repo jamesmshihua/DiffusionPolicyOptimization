@@ -1,18 +1,19 @@
+import logging
 import os
 import random
+
+import hydra
 import numpy as np
 import tensorflow as tf
-from omegaconf import OmegaConf
-import hydra
-import logging
 import wandb
-from copy import deepcopy
+from omegaconf import OmegaConf
 
 log = logging.getLogger(__name__)
 
 # Device setting
 DEVICE = "/gpu:0" if tf.config.list_physical_devices('GPU') else "/cpu:0"
-    
+
+
 def to_device(x, device=DEVICE):
     if tf.is_tensor(x):
         with tf.device(device):
@@ -21,12 +22,14 @@ def to_device(x, device=DEVICE):
         return {k: to_device(v, device) for k, v in x.items()}
     else:
         print(f"Unrecognized type in `to_device`: {type(x)}")
-    
+
+
 def batch_to_device(batch, device="/gpu:0"):
     """Convert each field of the batch to TensorFlow tensor on the appropriate device"""
     return {
         k: to_device(v, device=device) for k, v in batch.items()
     }
+
 
 def stitched_sequence_generator(dataset):
     for idx in range(len(dataset)):
@@ -38,9 +41,11 @@ def stitched_sequence_generator(dataset):
         #         "state": sp.conditions["state"]
         #     }
         # }
-        
+
+
 class EMA(tf.Module):
     """Exponential Moving Average (EMA) implementation in TensorFlow."""
+
     def __init__(self, decay):
         super().__init__()
         self.decay = decay
@@ -51,6 +56,7 @@ class EMA(tf.Module):
 
     def update_average(self, old, new):
         return old * self.decay + (1 - self.decay) * new
+
 
 class PreTrainAgent(tf.Module):
     def __init__(self, cfg):
@@ -105,8 +111,10 @@ class PreTrainAgent(tf.Module):
         if "train_split" in cfg.train and cfg.train.train_split < 1:
             train_size = int(cfg.train.train_split * len(self.dataset_train))
             val_size = len(self.dataset_train) - train_size
-            self.dataset_train, self.dataset_val = tf.keras.utils.split_dataset(self.dataset_train, [train_size, val_size])
-            self.dataloader_val = tf.data.Dataset.from_tensor_slices(self.dataset_val).batch(self.batch_size)
+            self.dataset_train, self.dataset_val = tf.keras.utils.split_dataset(self.dataset_train,
+                                                                                [train_size, val_size])
+            self.dataloader_val = tf.data.Dataset.from_tensor_slices(self.dataset_val)\
+                                  .batch(self.batch_size).prefetch(2).cache("cache")
 
         # Optimizer and learning rate scheduler
         self.lr_scheduler = tf.keras.optimizers.schedules.CosineDecayRestarts(
