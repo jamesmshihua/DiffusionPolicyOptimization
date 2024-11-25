@@ -5,7 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Script with Arguments",
+            "name": "Finetune",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "script/run.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config-name=ft_ppo_diffusion_mlp",
+                "--config-dir=cfg/gym/finetune/hopper-v2"
+            ]
+        },
+        {
+            "name": "Pretrain",
             "type": "debugpy",
             "request": "launch",
             "program": "script/run.py",

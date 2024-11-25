@@ -1,6 +1,7 @@
 from diffusion_vpg import VPGDiffusion
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
+# from tensorflow_probability import distributions as tfd
+import tensorflow_probability as tfp
 import math
 
 class PPODiffusion(VPGDiffusion):
