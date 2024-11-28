@@ -5,6 +5,8 @@ Additional implementation of the ViT image encoder from https://github.com/hengy
 
 import tensorflow as tf
 import tensorflow_addons as tfa
+from model.common.grid_sampler import nearest_sampler
+
 
 class SpatialEmb(tf.keras.Model):
     def __init__(self, num_patch, patch_dim, prop_dim, proj_dim, dropout):
@@ -60,8 +62,10 @@ class RandomShiftsAug(tf.keras.Model):
         shift *= 2.0 / (h + 2 * self.pad)
 
         grid = base_grid + shift
+        # x must have a shape (B, H, W, C)
+        # (B, C, H, W) - > (B, H, W, C)
         x = tf.transpose(x, perm=(0, 2, 3, 1))
-        return tfa.image.resampler(x, grid)
+        return nearest_sampler(x, grid)
 
 # # test random shift
 # if __name__ == "__main__":
