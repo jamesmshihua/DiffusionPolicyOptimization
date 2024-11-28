@@ -1,4 +1,4 @@
-from diffusion import DiffusionModel
+from model.diffusion.diffusion import DiffusionModel
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 

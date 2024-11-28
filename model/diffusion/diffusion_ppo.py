@@ -1,4 +1,4 @@
-from diffusion_vpg import VPGDiffusion
+from model.diffusion.diffusion_vpg import VPGDiffusion
 import tensorflow as tf
 # from tensorflow_probability import distributions as tfd
 import tensorflow_probability as tfp
