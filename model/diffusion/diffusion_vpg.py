@@ -10,6 +10,7 @@ class VPGDiffusion(DiffusionModel):
         ft_denoising_steps,
         ft_denoising_steps_d=0,
         ft_denoising_steps_t=0,
+        network_path=None,
         min_sampling_denoising_std=0.1,
         min_logprob_denoising_std=0.1,
         eta=None,

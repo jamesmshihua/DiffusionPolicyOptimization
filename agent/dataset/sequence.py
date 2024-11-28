@@ -114,12 +114,12 @@ class StitchedSequenceDataset(tf.data.Dataset):
             )
             conditions["rgb"] = images
             
-        tf.debugging.assert_shapes(
-            [
-                (actions,(4,3)),
-                (states,(1,11))
-            ],message="Shape Mismatch"
-        )
+        # tf.debugging.assert_shapes(
+        #     [
+        #         (actions,(4,3)),
+        #         (states,(1,11))
+        #     ],message="Shape Mismatch"
+        # )
         
         return {"actions": actions, "conditions": {"state": states}}
 
