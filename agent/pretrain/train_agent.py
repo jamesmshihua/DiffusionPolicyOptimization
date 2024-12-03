@@ -104,17 +104,17 @@ class PreTrainAgent(tf.Module):
             lambda: stitched_sequence_generator(stitched_sequence_dataset),
             output_signature=stitched_sequence_dataset.element_spec()
         )
-        self.dataloader_train = self.dataset_train.batch(self.batch_size)
+        self.dataloader_train = self.dataset_train.batch(self.batch_size).cache("cache_train").prefetch(2)
         self.dataloader_val = None
 
-        # Split dataset for validation
-        if "train_split" in cfg.train and cfg.train.train_split < 1:
-            train_size = int(cfg.train.train_split * len(self.dataset_train))
-            val_size = len(self.dataset_train) - train_size
-            self.dataset_train, self.dataset_val = tf.keras.utils.split_dataset(self.dataset_train,
-                                                                                [train_size, val_size])
-            self.dataloader_val = tf.data.Dataset.from_tensor_slices(self.dataset_val)\
-                                  .batch(self.batch_size).prefetch(2).cache("cache")
+        # # Split dataset for validation
+        # if "train_split" in cfg.train and cfg.train.train_split < 1:
+        #     train_size = int(cfg.train.train_split * len(self.dataset_train))
+        #     val_size = len(self.dataset_train) - train_size
+        #     self.dataset_train, self.dataset_val = tf.keras.utils.split_dataset(self.dataset_train,
+        #                                                                         [train_size, val_size])
+        #     self.dataloader_val = tf.data.Dataset.from_tensor_slices(self.dataset_val)\
+        #                           .batch(self.batch_size).cache("cache_val").prefetch(2)
 
         # Optimizer and learning rate scheduler
         self.lr_scheduler = tf.keras.optimizers.schedules.CosineDecayRestarts(
@@ -147,9 +147,9 @@ class PreTrainAgent(tf.Module):
 
     def save_model(self, epoch):
         """Saves the model and EMA model to disk."""
-        save_path = os.path.join(self.checkpoint_dir, f"state_{epoch}.h5")
-        self.model.save_weights(save_path)
-        self.ema_model.save_weights(save_path.replace("state_", "ema_state_"))
+        save_path = os.path.join(self.checkpoint_dir, f"state_{epoch}.keras")
+        self.model.save(save_path)
+        self.ema_model.save(save_path.replace("state_", "ema_state_"))
         log.info(f"Saved model to {save_path}")
 
     def load_model(self, epoch):

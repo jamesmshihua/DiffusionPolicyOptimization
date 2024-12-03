@@ -89,7 +89,7 @@ class VPGDiffusion(DiffusionModel):
             std = tf.sqrt(self.betas[t])
         return x_recon, std
 
-    def forward(self, cond, deterministic=False, return_chain=True, use_base_policy=False):
+    def call(self, cond, deterministic=False, return_chain=True, use_base_policy=False):
         """ Sampling forward pass, returning trajectory or full chain if specified. """
         B = tf.shape(cond['state'])[0]
         x = tf.random.normal((B, self.horizon_steps, self.action_dim), dtype=tf.float32)
@@ -107,7 +107,7 @@ class VPGDiffusion(DiffusionModel):
 
         return (x, chain) if return_chain else x
 
-    def loss(self, cond, chains, reward):
+    def c_loss(self, cond, chains, reward):
         """ Calculates REINFORCE loss for actor-critic training. """
         # Get critic's value for baseline
         value = tf.squeeze(self.critic(cond), axis=-1)

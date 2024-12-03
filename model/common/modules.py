@@ -4,7 +4,7 @@ Additional implementation of the ViT image encoder from https://github.com/hengy
 """
 
 import tensorflow as tf
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 from model.common.grid_sampler import nearest_sampler
 
 

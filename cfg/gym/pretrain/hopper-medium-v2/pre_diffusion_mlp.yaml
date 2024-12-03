@@ -19,9 +19,9 @@ horizon_steps: 4
 cond_steps: 1
 
 wandb:
-  entity: ${oc.env:DPPO_WANDB_ENTITY}
-  project: gym-${env}-pretrain
-  run: ${now:%H-%M-%S}_${name}
+  # entity: ${oc.env:DPPO_WANDB_ENTITY}
+  # project: gym-${env}-pretrain
+  # run: ${now:%H-%M-%S}_${name}
 
 train:
   n_epochs: 3000
@@ -34,7 +34,7 @@ train:
     min_lr: 1e-4
   epoch_start_ema: 10
   update_ema_freq: 5
-  save_model_freq: 100
+  save_model_freq: 1
 
 model:
   _target_: model.diffusion.diffusion.DiffusionModel

@@ -103,7 +103,7 @@ class CriticObsAct(tf.keras.Model):
         # flatten action
         action = action.view(B, -1)
 
-        x = torch.cat((state, action), dim=-1)
+        x = tf.concat((state, action), dim=-1)
         if hasattr(self, "Q2"):
             q1 = self.Q1(x)
             q2 = self.Q2(x)
@@ -196,11 +196,11 @@ class ViTCritic(CriticObs):
             feat2 = self.backbone(rgb2)
             feat1 = self.compress1.forward(feat1, state)
             feat2 = self.compress2.forward(feat2, state)
-            feat = torch.cat([feat1, feat2], dim=-1)
+            feat = tf.concat([feat1, feat2], dim=-1)
         else:  # single image
             if self.augment and not no_augment:
                 rgb = self.aug(rgb)  # uint8 -> float32
             feat = self.backbone(rgb)
             feat = self.compress.forward(feat, state)
-        feat = torch.cat([feat, state], dim=-1)
+        feat = tf.concat([feat, state], dim=-1)
         return super().forward(feat)

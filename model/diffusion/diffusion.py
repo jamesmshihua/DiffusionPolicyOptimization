@@ -15,7 +15,7 @@ from model.diffusion.sampling import (
 Sample = namedtuple("Sample", "trajectories chains")
 
 
-class DiffusionModel(tf.Module):
+class DiffusionModel(tf.keras.Model):
     def __init__(
         self,
         network,
@@ -143,7 +143,7 @@ class DiffusionModel(tf.Module):
             logvar = extract(self.ddpm_logvar_clipped, t, tf.shape(x))
         return mu, logvar
 
-    def forward(self, cond, deterministic=True):
+    def call(self, cond, deterministic=True):
         sample_data = cond["state"] if "state" in cond else cond["rgb"]
         B = tf.shape(sample_data)[0]
 
@@ -169,7 +169,7 @@ class DiffusionModel(tf.Module):
         
         return Sample(x, None)
 
-    def loss(self, **kwargs):
+    def c_loss(self, **kwargs):
         actions = kwargs.get("actions")
         cond = kwargs.get("conditions")
         batch_size = int(tf.shape(actions).numpy()[0])
