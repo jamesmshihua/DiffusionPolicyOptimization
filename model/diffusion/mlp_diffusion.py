@@ -24,6 +24,17 @@ class DiffusionMLP(tf.keras.Model):
         residual_style=False,
     ):
         super().__init__()
+        self.action_dim = action_dim
+        self.horizon_steps = horizon_steps
+        self.cond_dim = cond_dim
+        self.time_dim = time_dim
+        self.mlp_dims = list(mlp_dims)
+        self.cond_mlp_dims = cond_mlp_dims
+        self.activation_type = activation_type
+        self.out_activation_type = out_activation_type
+        self.use_layernorm = use_layernorm
+        self.residual_style = residual_style
+        
         output_dim = action_dim * horizon_steps
 
         self.time_embedding = tf.keras.Sequential([
@@ -77,16 +88,16 @@ class DiffusionMLP(tf.keras.Model):
 
     def get_config(self):
         config = {
-            # 'action_dim': self.action_dim,  # Action dimension
-            # 'horizon_steps': self.horizon_steps,  # Horizon steps
-            # 'cond_dim': self.cond_dim,  # Conditioning dimension
-            # 'time_dim': self.time_dim,  # Time dimension
-            # 'mlp_dims': self.mlp_dims,  # MLP dimensions
-            # 'cond_mlp_dims': self.cond_mlp_dims,  # Conditional MLP dimensions
-            # 'activation_type': self.activation_type,  # Activation type
-            # 'out_activation_type': self.out_activation_type,  # Output activation type
-            # 'use_layernorm': self.use_layernorm,  # Layer normalization flag
-            # 'residual_style': self.residual_style,  # Residual style flag
+            'action_dim': self.action_dim,  # Action dimension
+            'horizon_steps': self.horizon_steps,  # Horizon steps
+            'cond_dim': self.cond_dim,  # Conditioning dimension
+            'time_dim': self.time_dim,  # Time dimension
+            'mlp_dims': self.mlp_dims,  # MLP dimensions
+            'cond_mlp_dims': self.cond_mlp_dims,  # Conditional MLP dimensions
+            'activation_type': self.activation_type,  # Activation type
+            'out_activation_type': self.out_activation_type,  # Output activation type
+            'use_layernorm': self.use_layernorm,  # Layer normalization flag
+            'residual_style': self.residual_style,  # Residual style flag
         }
         return config
     

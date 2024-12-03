@@ -149,14 +149,14 @@ class PreTrainAgent(tf.Module):
 
     def save_model(self, epoch):
         """Saves the model and EMA model to disk."""
-        save_path = os.path.join(self.checkpoint_dir, f"state_{epoch}.keras")
-        self.model.save(save_path)
-        self.ema_model.save(save_path.replace("state_", "ema_state_"))
+        save_path = os.path.join(self.checkpoint_dir, f"state_{epoch}.weights.h5")
+        self.model.save_weights(save_path)
+        self.ema_model.save_weights(save_path.replace("state_", "ema_state_"))
         log.info(f"Saved model to {save_path}")
 
     def load_model(self, epoch):
         """Loads the model and EMA model from disk."""
-        load_path = os.path.join(self.checkpoint_dir, f"state_{epoch}.h5")
+        load_path = os.path.join(self.checkpoint_dir, f"state_{epoch}.weights.h5")
         self.model.load_weights(load_path)
         self.ema_model.load_weights(load_path.replace("state_", "ema_state_"))
         log.info(f"Loaded model from {load_path}")

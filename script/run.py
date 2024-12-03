@@ -12,6 +12,7 @@ from download_url import (
     get_normalization_download_url,
     get_checkpoint_download_url,
 )
+import tensorflow as tf
 
 # allows arbitrary python code execution in configs using the ${eval:''} resolver
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -78,8 +79,9 @@ def main(cfg: OmegaConf):
 
     # run agent
     cls = hydra.utils.get_class(cfg._target_)
-    agent = cls(cfg)
-    agent.run()
+    with tf.device("/GPU:0"):
+        agent = cls(cfg)
+        agent.run()
 
 
 if __name__ == "__main__":

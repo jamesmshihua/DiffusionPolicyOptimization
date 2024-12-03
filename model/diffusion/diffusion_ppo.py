@@ -130,3 +130,16 @@ class PPODiffusion(VPGDiffusion):
             bc_loss,
             tf.reduce_mean(eta)
         )
+
+    def get_config(self):
+        # config = dict()
+        config = super().get_config()
+        config["gamma_denoising"] = self.gamma_denoising
+        config["clip_ploss_coef"] = self.clip_ploss_coef
+        config["clip_ploss_coef_base"] = self.clip_ploss_coef_base
+        config["clip_ploss_coef_rate"] = self.clip_ploss_coef_rate
+        config["clip_vloss_coef"] = self.clip_vloss_coef
+        config["clip_advantage_lower_quantile"] = self.clip_advantage_lower_quantile
+        config["clip_advantage_upper_quantile"] = self.clip_advantage_upper_quantile
+        config["norm_adv"] = self.norm_adv
+        return config

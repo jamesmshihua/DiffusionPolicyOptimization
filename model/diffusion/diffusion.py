@@ -57,6 +57,7 @@ class DiffusionModel(tf.keras.Model):
         # Set up models
         self.network = network
         if network_path is not None:
+            # self.network.load_weights(network_path)
             self.network.load_weights(network_path)
             log.info(f"Loaded model from {network_path}")
         log.info(

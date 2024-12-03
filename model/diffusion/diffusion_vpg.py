@@ -1,6 +1,7 @@
 from model.diffusion.diffusion import DiffusionModel
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
+# import copy
 
 class VPGDiffusion(DiffusionModel):
     def __init__(
@@ -23,7 +24,7 @@ class VPGDiffusion(DiffusionModel):
             **kwargs
         )
         
-        assert ft_denoising_steps <= self.ft_denoising_steps
+        assert ft_denoising_steps <= self.denoising_steps
         assert ft_denoising_steps <= self.ddim_steps if self.use_ddim else True
         assert not (learn_eta and not self.use_ddim), "Cannot learn eta with DDPM."
         
@@ -36,13 +37,14 @@ class VPGDiffusion(DiffusionModel):
         # Minimum std values for stability
         self.min_sampling_denoising_std = min_sampling_denoising_std
         self.min_logprob_denoising_std = min_logprob_denoising_std
-
+        self.learn_eta = learn_eta
         # Eta - learnable parameter for DDIM sampling
         self.eta = tf.Variable(eta if eta is not None else 0.0, trainable=learn_eta, dtype=tf.float32)
 
         # Rename actor and create fine-tuning copy
         self.actor = actor  # Main actor network
         self.actor_ft = tf.keras.models.clone_model(actor)
+        # self.actor_ft.set_weights(self.actor.get_weights())
 
         # Turn off gradients for original actor
         self.actor.trainable = False
@@ -138,3 +140,18 @@ class VPGDiffusion(DiffusionModel):
         dist = tfd.Normal(mean, std)
         log_prob = dist.log_prob(chains_next)
         return log_prob
+
+    def get_config(self):
+        # config = dict()
+        config = super().get_config()
+        config["actor"] = self.actor
+        config["critic"] = self.critic
+        config["ft_denoising_steps"] = self.ft_denoising_steps
+        config["ft_denoising_steps_d"] = self.ft_denoising_steps_d
+        config["ft_denoising_steps_t"] = self.ft_denoising_steps_t
+        config["network_path"] = self.network_path
+        config["min_sampling_denoising_std"] = self.min_sampling_denoising_std
+        config["min_logprob_denoising_std"] = self.min_logprob_denoising_std
+        config["eta"] = self.eta
+        config["learn_eta"] = self.learn_eta
+        return config

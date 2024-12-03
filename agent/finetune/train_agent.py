@@ -128,17 +128,17 @@ class TrainAgent:
         """
         saves model to disk; no ema
         """
-        savepath = os.path.join(self.checkpoint_dir, f"state_{self.itr}.h5")
-        self.model.save(savepath)
+        savepath = os.path.join(self.checkpoint_dir, f"state_{self.itr}.weights.h5")
+        self.model.save_weights(savepath)
         log.info(f"Saved model to {savepath}")
 
     def load(self, itr):
         """
         loads model from disk
         """
-        loadpath = os.path.join(self.checkpoint_dir, f"state_{itr}.h5")
+        loadpath = os.path.join(self.checkpoint_dir, f"state_{itr}.weights.h5")
         # self.model.load_weights(loadpath)
-        self.model = tf.keras.models.load_model(loadpath)
+        self.model.load_weights(loadpath)
         log.info(f"Loaded model from {loadpath}")
 
     def reset_env_all(self, verbose=False, options_venv=None, **kwargs):
