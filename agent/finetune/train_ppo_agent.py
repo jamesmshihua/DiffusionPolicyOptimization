@@ -7,7 +7,7 @@ from typing import Optional
 import tensorflow as tf
 import logging
 # import tf.keras.optimizers.schedules.CosineDecayRestarts as CosineAnnealingWarmupRestarts
-from util.scheduler import CosineAnnealingWarmupRestarts
+from util.scheduler import CosineAnnealingWarmupRestarts2
 
 log = logging.getLogger(__name__)
 from agent.finetune.train_agent import TrainAgent
@@ -32,8 +32,8 @@ class TrainPPOAgent(TrainAgent):
         self.n_critic_warmup_itr = cfg.train.n_critic_warmup_itr
 
         # use cosine scheduler with linear warmup
-        self.actor_lr_scheduler = CosineAnnealingWarmupRestarts(
-            # self.actor_optimizer,
+        self.actor_lr_scheduler = CosineAnnealingWarmupRestarts2(
+            initial_learning_rate=0.001,
             first_cycle_steps=cfg.train.actor_lr_scheduler.first_cycle_steps,
             cycle_mult=1.0,
             max_lr=cfg.train.actor_lr,
@@ -47,8 +47,8 @@ class TrainPPOAgent(TrainAgent):
             learning_rate=self.actor_lr_scheduler,
             decay=cfg.train.actor_weight_decay,
         )
-        self.critic_lr_scheduler = CosineAnnealingWarmupRestarts(
-            # self.critic_optimizer,
+        self.critic_lr_scheduler = CosineAnnealingWarmupRestarts2(
+            initial_learning_rate=0.001,
             first_cycle_steps=cfg.train.critic_lr_scheduler.first_cycle_steps,
             cycle_mult=1.0,
             max_lr=cfg.train.critic_lr,
@@ -91,7 +91,7 @@ class TrainPPOAgent(TrainAgent):
 
     def reset_actor_optimizer(self):
         """Not used anywhere currently"""
-        new_scheduler = CosineAnnealingWarmupRestarts(**self.actor_lr_scheduler.get_config())
+        new_scheduler = CosineAnnealingWarmupRestarts2(**self.actor_lr_scheduler.get_config())
         self.actor_lr_scheduler = new_scheduler
         new_optimizer = tf.keras.optimizers.Adam(
             # self.model.actor_ft.parameters(),
