@@ -45,7 +45,7 @@ class TrainDiffusionAgent(PreTrainAgent):
         # #modify
         self.epoch = 1
         for dummy_batch in self.dataloader_train:
-            self.ema_model.loss(**dummy_batch)
+            self.ema_model.c_loss(**dummy_batch)
             break
         
         for _ in range(self.n_epochs):
@@ -56,7 +56,7 @@ class TrainDiffusionAgent(PreTrainAgent):
                 # if self.dataset_train.device == "cpu":
                 batch_train = batch_to_device(batch_train)
                 with tf.GradientTape() as tape:
-                    loss_train = self.model.loss(**batch_train)
+                    loss_train = self.model.c_loss(**batch_train)
                     
                 gradients = tape.gradient(loss_train, self.model.network.trainable_variables)
                 self.optimizer.apply_gradients(
@@ -64,7 +64,8 @@ class TrainDiffusionAgent(PreTrainAgent):
                 )
                 loss_train_epoch.append(loss_train.numpy())
                 n_batch += 1
-                log.info(f"Epoch {self.epoch}, Batch {n_batch}")
+                if n_batch % 100 == 0:
+                    log.info(f"Epoch {self.epoch}, Batch {n_batch}")
                 # if n_batch > 10:
                 #     break
                 
@@ -76,7 +77,7 @@ class TrainDiffusionAgent(PreTrainAgent):
                 for batch_val in self.dataloader_val:
                     if self.dataset_val.device == "cpu":
                         batch_val = batch_to_device(batch_val)
-                    loss_val, infos_val = self.model.loss(**batch_val)
+                    loss_val, infos_val = self.model.c_loss(**batch_val)
                     loss_val_epoch.append(loss_val.numpy())
 
             loss_val = np.mean(loss_val_epoch) if loss_val_epoch else None
@@ -90,7 +91,7 @@ class TrainDiffusionAgent(PreTrainAgent):
 
             # save model
             if self.epoch % self.save_model_freq == 0 or self.epoch == self.n_epochs:
-                self.save_model()
+                self.save_model(self.epoch)
 
             # log loss
             if self.epoch % self.log_freq == 0:

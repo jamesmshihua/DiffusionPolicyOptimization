@@ -311,7 +311,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                             ratio,
                             bc_loss,
                             eta,
-                        ) = self.model.loss(
+                        ) = self.model.c_loss(
                             obs_b,
                             chains_prev_b,
                             chains_next_b,

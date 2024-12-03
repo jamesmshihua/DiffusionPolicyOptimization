@@ -72,7 +72,7 @@ class StitchedSequenceDataset(tf.data.Dataset):
         self.indices = self.make_indices(traj_lengths, horizon_steps)
 
         # Extract states and actions up to max_n_episodes
-        with tf.device("cpu"):
+        with tf.device("/GPU:0"):
             self.states = (
                 tf.convert_to_tensor(dataset["states"][:total_num_steps], dtype=tf.float32)
             )  # (total_num_steps, obs_dim)

@@ -78,10 +78,11 @@ class PreTrainAgent(tf.Module):
             )
 
         # Build model and EMA
-        self.model = hydra.utils.instantiate(cfg.model)
-        self.ema = EMA(cfg.ema.decay)
-        # self.ema_model = tf.keras.models.clone_model(self.model)
-        self.ema_model = hydra.utils.instantiate(cfg.model)
+        with tf.device("/GPU:0"):
+            self.model = hydra.utils.instantiate(cfg.model)
+            self.ema = EMA(cfg.ema.decay)
+            # self.ema_model = tf.keras.models.clone_model(self.model)
+            self.ema_model = hydra.utils.instantiate(cfg.model)
         # self.ema_model.set_weights(self.model.get_weights())
 
         # Training parameters
@@ -99,13 +100,14 @@ class PreTrainAgent(tf.Module):
         self.save_model_freq = cfg.train.save_model_freq
 
         # Dataset and dataloader
-        stitched_sequence_dataset = hydra.utils.instantiate(cfg.train_dataset)
-        self.dataset_train = tf.data.Dataset.from_generator(
-            lambda: stitched_sequence_generator(stitched_sequence_dataset),
-            output_signature=stitched_sequence_dataset.element_spec()
-        )
-        self.dataloader_train = self.dataset_train.batch(self.batch_size).cache("cache_train").prefetch(2)
-        self.dataloader_val = None
+        with tf.device("/GPU:0"):
+            stitched_sequence_dataset = hydra.utils.instantiate(cfg.train_dataset)
+            self.dataset_train = tf.data.Dataset.from_generator(
+                lambda: stitched_sequence_generator(stitched_sequence_dataset),
+                output_signature=stitched_sequence_dataset.element_spec()
+            )
+            self.dataloader_train = self.dataset_train.batch(self.batch_size).cache("cache_train").prefetch(2)
+            self.dataloader_val = None
 
         # # Split dataset for validation
         # if "train_split" in cfg.train and cfg.train.train_split < 1:
