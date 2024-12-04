@@ -54,16 +54,6 @@ class DiffusionModel(tf.keras.Model):
         self.randn_clip_value = randn_clip_value
         self.eps_clip_value = eps_clip_value
 
-        # Set up models
-        self.network = network
-        if network_path is not None:
-            # self.network.load_weights(network_path)
-            self.network.load_weights(network_path)
-            log.info(f"Loaded model from {network_path}")
-        log.info(
-            f"Number of network parameters: {np.sum([np.prod(v.shape) for v in self.network.trainable_variables])}"
-        )
-
         # DDPM parameters
         self.betas = cosine_beta_schedule(denoising_steps)
         self.alphas = 1.0 - self.betas
@@ -104,6 +94,21 @@ class DiffusionModel(tf.keras.Model):
                 (1 - self.ddim_alphas_prev) / (1 - self.ddim_alphas)
                 * (1 - self.ddim_alphas / self.ddim_alphas_prev)
             )
+            
+        # Set up models
+        self.network = network
+        self.network_path = network_path
+        # if network_path is not None:
+        #     dummy = {
+        #         "actions": tf.zeros((1,4,3)),
+        #         "conditions": tf.zeros((1,1,11))
+        #     }
+        #     self.c_loss(dummy)
+        #     self.network.load_weights(network_path)
+        #     log.info(f"Loaded model from {network_path}")
+        # log.info(
+        #     f"Number of network parameters: {np.sum([np.prod(v.shape) for v in self.network.trainable_variables])}"
+        # )
 
     def p_mean_var(self, x, t, cond, index=None, network_override=None):
         noise = network_override(x, t, cond=cond) if network_override else self.network(x, t, cond=cond)

@@ -6,7 +6,7 @@ hydra:
 _target_: agent.pretrain.train_diffusion_agent.TrainDiffusionAgent
 
 name: ${env}_pre_diffusion_mlp_ta${horizon_steps}_td${denoising_steps}
-logdir: ${oc.env:DPPO_LOG_DIR}/gym-pretrain/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}_${seed}
+logdir: ${oc.env:DPPO_LOG_DIR}/gym-pretrain/${name}/${now:%Y-%m-%d}_${now:%H-%M}
 train_dataset_path: ${oc.env:DPPO_DATA_DIR}/gym/${env}/train.npz
 
 seed: 42
@@ -19,9 +19,9 @@ horizon_steps: 4
 cond_steps: 1
 
 wandb:
-  entity: ${oc.env:DPPO_WANDB_ENTITY}
-  project: gym-${env}-pretrain
-  run: ${now:%H-%M-%S}_${name}
+  # entity: ${oc.env:DPPO_WANDB_ENTITY}
+  # project: gym-${env}-pretrain
+  # run: ${now:%H-%M-%S}_${name}
 
 train:
   n_epochs: 3000
@@ -38,6 +38,7 @@ train:
 
 model:
   _target_: model.diffusion.diffusion.DiffusionModel
+  network_path: ${oc.env:DPPO_LOG_DIR}/gym-pretrain/${name}/2024-06-12_23-10-05/checkpoint/state_1.weights.h5
   predict_epsilon: True
   denoised_clip_value: 1.0
   network:

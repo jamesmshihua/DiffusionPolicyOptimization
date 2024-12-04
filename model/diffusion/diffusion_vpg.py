@@ -80,15 +80,15 @@ class VPGDiffusion(DiffusionModel):
         logging.info("Cloned model for fine-tuning")
 
         # Turn off gradients for original model
-        for param in self.actor.parameters():
-            param.requires_grad = False
+        # for param in self.actor.parameters():
+        #     param.requires_grad = False
         logging.info("Turned off gradients of the pretrained network")
         logging.info(
-            f"Number of finetuned parameters: {sum(p.numel() for p in self.actor_ft.parameters() if p.requires_grad)}"
+            f"Number of finetuned parameters: {sum(p.numel() for p in self.actor_ft.trainable_variables if p.requires_grad)}"
         )
 
         # Value function
-        self.critic = critic.to(self.device)
+        self.critic = critic
         if network_path is not None:
             # checkpoint = torch.load(
             #     network_path, map_location=self.device, weights_only=True
@@ -96,8 +96,17 @@ class VPGDiffusion(DiffusionModel):
             # if "ema" not in checkpoint:  # load trained RL model
             #     self.load_state_dict(checkpoint["model"], strict=False)
             #     logging.info("Loaded critic from %s", network_path)
+            dummy_x_noisy = tf.zeros((10, 4, 3))
+            dummy_t = tf.zeros((10,))
+            dummy_cond = {
+                "state": tf.zeros((10,1,11))
+            }
+            
+            self.actor(dummy_x_noisy, dummy_t, cond=dummy_cond)
             self.actor.load_weights(self.network_path)
-            self.critic.load_weights(self.network_path)
+            
+            # self.critic(dummy_x_noisy, dummy_t, cond=dummy_cond)
+            # self.critic.load_weights(self.network_path)
 
     # ---------- Sampling ----------#
 
@@ -225,7 +234,7 @@ class VPGDiffusion(DiffusionModel):
 
     # override
     # @torch.no_grad()
-    def forward(
+    def call(
         self,
         cond,
         deterministic=False,
@@ -247,7 +256,7 @@ class VPGDiffusion(DiffusionModel):
                 trajectories: (B, Ta, Da)
                 chain: (B, K + 1, Ta, Da)
         """
-        device = self.betas.device
+        # device = self.betas.device
         sample_data = cond["state"] if "state" in cond else cond["rgb"]
         B = len(sample_data)
 
@@ -266,8 +275,8 @@ class VPGDiffusion(DiffusionModel):
         if self.use_ddim and self.ft_denoising_steps == self.ddim_steps:
             chain.append(x)
         for i, t in enumerate(t_all):
-            t_b = make_timesteps(B, t, device)
-            index_b = make_timesteps(B, i, device)
+            t_b = make_timesteps(B, t)
+            index_b = make_timesteps(B, i)
             mean, logvar, _ = self.p_mean_var(
                 x=x,
                 t=t_b,

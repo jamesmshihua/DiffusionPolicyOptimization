@@ -1,4 +1,4 @@
-from model.diffusion.diffusion_vpg_g import VPGDiffusion
+from model.diffusion.diffusion_vpg import VPGDiffusion
 import tensorflow as tf
 # from tensorflow_probability import distributions as tfd
 import tensorflow_probability as tfp
@@ -61,7 +61,7 @@ class PPODiffusion(VPGDiffusion):
         # Optional behavioral cloning loss
         bc_loss = 0
         if use_bc_loss:
-            samples = self.forward(
+            samples = self.call(
                 cond=obs, deterministic=False, return_chain=True, use_base_policy=True
             )
             bc_logprobs = self.get_logprobs(

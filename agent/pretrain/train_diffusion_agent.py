@@ -45,8 +45,13 @@ class TrainDiffusionAgent(PreTrainAgent):
         # #modify
         self.epoch = 1
         for dummy_batch in self.dataloader_train:
+            self.model.c_loss(**dummy_batch)
             self.ema_model.c_loss(**dummy_batch)
             break
+        
+        if self.model.network_path is not None:
+            self.model.network.load_weights(self.model.network_path)
+            self.ema_model.network.load_weights(self.model.network_path.replace("state_", "ema_state_"))
         
         for _ in range(self.n_epochs):
             # train

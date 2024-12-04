@@ -24,6 +24,6 @@ def extract(a, t, x_shape):
     return tf.reshape(out, [b] + [1] * (len(x_shape) - 1))
 
 
-def make_timesteps(batch_size, i, device):
-    t = tf.fill((batch_size,), i, name='timesteps', device=device)
+def make_timesteps(batch_size, i, **kwargs):
+    t = tf.fill((batch_size,), i, name='timesteps')
     return t
