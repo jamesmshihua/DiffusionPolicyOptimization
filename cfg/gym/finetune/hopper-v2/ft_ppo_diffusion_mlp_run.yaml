@@ -6,7 +6,7 @@ hydra:
 _target_: agent.finetune.train_ppo_diffusion_agent.TrainPPODiffusionAgent
 
 name: ${env_name}_ppo_diffusion_mlp_ta${horizon_steps}_td${denoising_steps}_tdf${ft_denoising_steps}
-logdir: ${oc.env:DPPO_LOG_DIR}/gym-finetune/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}_${seed}
+logdir: ${oc.env:DPPO_LOG_DIR}/gym-finetune/${name}/${now:%Y-%m-%d}_${now:%H-%M}
 # base_policy_path: ${oc.env:DPPO_LOG_DIR}/gym-pretrain/hopper-medium-v2_pre_diffusion_mlp_ta4_td20/2024-06-12_23-10-05/checkpoint/state_3000.pt
 base_policy_path: ${oc.env:DPPO_LOG_DIR}/gym-pretrain/hopper-medium-v2_pre_diffusion_mlp_ta4_td20/2024-06-12_23-10-05/checkpoint/state_745.weights.h5
 normalization_path: ${oc.env:DPPO_DATA_DIR}/gym/${env_name}/normalization.npz
@@ -23,7 +23,7 @@ horizon_steps: 4
 act_steps: 4
 
 env:
-  n_envs: 1
+  n_envs: 40
   name: ${env_name}
   max_episode_steps: 1000
   reset_at_iteration: False
@@ -39,9 +39,9 @@ env:
       reset_within_step: True
 
 wandb:
-#  entity: ${oc.env:DPPO_WANDB_ENTITY}
-#  project: gym-${env_name}-finetune
-#  run: ${now:%H-%M-%S}_${name}
+ entity: ${oc.env:DPPO_WANDB_ENTITY}
+ project: gym-${env_name}-finetune
+ run: ${now:%H-%M-%S}_${name}
 
 train:
   n_train_itr: 1000
