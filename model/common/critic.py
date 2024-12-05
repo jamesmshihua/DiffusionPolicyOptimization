@@ -107,10 +107,10 @@ class CriticObsAct(tf.keras.Model):
         if hasattr(self, "Q2"):
             q1 = self.Q1(x)
             q2 = self.Q2(x)
-            return q1.squeeze(1), q2.squeeze(1)
+            return tf.squeeze(q1, 1), tf.squeeze(q2, 1)
         else:
             q1 = self.Q1(x)
-            return q1.squeeze(1)
+            return tf.squeeze(q1, 1)
 
 
 class ViTCritic(CriticObs):

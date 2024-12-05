@@ -104,6 +104,7 @@ class VPGDiffusion(DiffusionModel):
             
             self.actor(dummy_x_noisy, dummy_t, cond=dummy_cond)
             self.actor.load_weights(self.network_path)
+            self.actor(dummy_x_noisy, dummy_t, cond=dummy_cond)
             
             # self.critic(dummy_x_noisy, dummy_t, cond=dummy_cond)
             # self.critic.load_weights(self.network_path)
@@ -163,13 +164,18 @@ class VPGDiffusion(DiffusionModel):
             ft_indices = (t < self.ft_denoising_steps)
 
         # Use base policy to query expert model, e.g. for imitation loss
-        actor = self.actor if use_base_policy else self.actor_ft
+        # actor = self.actor if use_base_policy else self.actor_ft
 
         # overwrite noise for fine-tuning steps
         if tf.reduce_sum(tf.cast(ft_indices, tf.int32)) > 0:
             cond_ft = {key: cond[key][ft_indices] for key in cond}
-            noise_ft = actor(x[ft_indices], t[ft_indices], cond=cond_ft)
-            noise[ft_indices] = noise_ft
+            # noise_ft = actor(x[ft_indices], t[ft_indices], cond=cond_ft)
+            if use_base_policy:
+                noise_ft = self.actor(x[ft_indices], t[ft_indices], cond=cond_ft)
+            else:
+                noise_ft = self.actor_ft(x[ft_indices], t[ft_indices], cond=cond_ft)
+            # noise[ft_indices] = noise_ft
+            noise = noise_ft
 
         # Predict x_0
         if self.predict_epsilon:
@@ -194,14 +200,16 @@ class VPGDiffusion(DiffusionModel):
         else:  # directly predicting x₀
             x_recon = noise
         if self.denoised_clip_value is not None:
-            x_recon.clamp_(-self.denoised_clip_value, self.denoised_clip_value)
+            # x_recon.clamp_(-self.denoised_clip_value, self.denoised_clip_value)
+            tf.clip_by_value(x_recon, -self.denoised_clip_value, self.denoised_clip_value)
             if self.use_ddim:
                 # re-calculate noise based on clamped x_recon - default to false in HF, but let's use it here
                 noise = (x - alpha ** (0.5) * x_recon) / sqrt_one_minus_alpha
 
         # Clip epsilon for numerical stability in policy gradient - not sure if this is helpful yet, but the value can be huge sometimes. This has no effect if DDPM is used
         if self.use_ddim and self.eps_clip_value is not None:
-            noise.clamp_(-self.eps_clip_value, self.eps_clip_value)
+            # noise.clamp_(-self.eps_clip_value, self.eps_clip_value)
+            tf.clip_by_value(noise, -self.eps_clip_value, self.eps_clip_value)
 
         # Get mu
         if self.use_ddim:
@@ -211,12 +219,14 @@ class VPGDiffusion(DiffusionModel):
             if deterministic:
                 etas = tf.zeros((x.shape[0], 1, 1)).to(x.device)
             else:
-                etas = self.eta(cond).unsqueeze(1)  # B x 1 x (Da or 1)
+                # etas = self.eta(cond).unsqueeze(1)  # B x 1 x (Da or 1)
+                etas = tf.expand_dims(self.eta(cond), axis=1)
             sigma = (
                 etas
                 * ((1 - alpha_prev) / (1 - alpha) * (1 - alpha / alpha_prev)) ** 0.5
             ).clamp_(min=1e-10)
-            dir_xt_coef = (1.0 - alpha_prev - sigma**2).clamp_(min=0).sqrt()
+            # dir_xt_coef = (1.0 - alpha_prev - sigma**2).clamp_(min=0).sqrt()
+            dir_xt_coef = tf.sqrt(tf.clip_by_value(1.0 - alpha_prev - sigma**2, 0, 1e6))
             mu = (alpha_prev**0.5) * x_recon + dir_xt_coef * noise
             var = sigma**2
             logvar = tf.log(var)
@@ -292,18 +302,18 @@ class VPGDiffusion(DiffusionModel):
                 if deterministic:
                     std = tf.zeros_like(std)
                 else:
-                    std = tf.clip(std, clip_value_min=min_sampling_denoising_std, clip_value_max=1e6)
+                    std = tf.clip_by_value(std, clip_value_min=min_sampling_denoising_std, clip_value_max=1e6)
             else:
                 if deterministic and t == 0:
                     std = tf.zeros_like(std)
                 elif deterministic:  # still keep the original noise
-                    std = tf.clip(std, clip_value_min=1e-3, clip_value_max=1e6)
+                    std = tf.clip_by_value(std, clip_value_min=1e-3, clip_value_max=1e6)
                 else:  # use higher minimum noise
-                    std = tf.clip(std, clip_value_min=min_sampling_denoising_std, clip_value_max=1e6)
+                    std = tf.clip_by_value(std, clip_value_min=min_sampling_denoising_std, clip_value_max=1e6)
             # noise = tf.randn_like(x).clamp_(
             #     -self.randn_clip_value, self.randn_clip_value
             # )
-            noise = tf.clip(tf.random.normal(x.shape), clip_value_min=-self.randn_clip_value, clip_value_max=self.randn_clip_value)
+            noise = tf.clip_by_value(tf.random.normal(x.shape), clip_value_min=-self.randn_clip_value, clip_value_max=self.randn_clip_value)
             x = mean + std * noise
 
             # clamp action at final step
@@ -311,7 +321,7 @@ class VPGDiffusion(DiffusionModel):
                 # x = torch.clamp(
                 #     x, -self.final_action_clip_value, self.final_action_clip_value
                 # )
-                x = tf.clip(x, clip_value_min=-self.final_action_clip_value, clip_value_max=self.final_action_clip_value)
+                x = tf.clip_by_value(x, clip_value_min=-self.final_action_clip_value, clip_value_max=self.final_action_clip_value)
 
             if return_chain:
                 if not self.use_ddim and t <= self.ft_denoising_steps:
@@ -322,7 +332,7 @@ class VPGDiffusion(DiffusionModel):
                     chain.append(x)
 
         if return_chain:
-            chain = tf.stack(chain, dim=1)
+            chain = tf.stack(chain, axis=1)
         return Sample(x, chain)
 
     # ---------- RL training ----------#
@@ -395,7 +405,7 @@ class VPGDiffusion(DiffusionModel):
             use_base_policy=use_base_policy,
         )
         std = tf.exp(0.5 * logvar)
-        std = tf.clip(std, min=self.min_logprob_denoising_std)
+        std = tf.clip_by_value(std, min=self.min_logprob_denoising_std)
         dist = tfp.distributions.normal.Normal(next_mean, std)
 
         # Get logprobs with gaussian
@@ -460,7 +470,7 @@ class VPGDiffusion(DiffusionModel):
             use_base_policy=use_base_policy,
         )
         std = tf.exp(0.5 * logvar)
-        std = tf.clip(std, self.min_logprob_denoising_std, 1e6)
+        std = tf.clip_by_value(std, self.min_logprob_denoising_std, 1e6)
         dist = tfp.distributions.normal.Normal(next_mean, std)
 
         # Get logprobs with gaussian
@@ -506,6 +516,6 @@ class VPGDiffusion(DiffusionModel):
         loss_actor = tf.reduce_mean(-logprobs * advantage)
 
         # Train critic to predict state value
-        pred = self.critic(cond).squeeze()
+        pred = tf.squeeze(self.critic(cond))
         loss_critic = tf.keras.losses.MSE(pred, reward)
         return loss_actor, loss_critic, eta

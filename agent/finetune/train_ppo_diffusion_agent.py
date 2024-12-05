@@ -104,7 +104,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
 
                 # Select action
                 cond = {
-                    "state": tf.convert_to_tensor(prev_obs_venv["state"], dtype=tf.float32).gpu()
+                    "state": tf.identity(tf.convert_to_tensor(prev_obs_venv["state"], dtype=tf.float32))
                 }
                 samples = self.model(
                     cond=cond,
@@ -112,10 +112,10 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                     return_chain=True,
                 )
                 output_venv = (
-                    samples.trajectories.cpu().numpy()
+                    samples.trajectories.numpy()
                 )  # n_env x horizon x act
                 chains_venv = (
-                    samples.chains.cpu().numpy()
+                    samples.chains.numpy()
                 )  # n_env x denoising x horizon x act
                 action_venv = output_venv[:, : self.act_steps]
 
@@ -197,12 +197,12 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                         obs_trajs["state"],
                         "s e ... -> (s e) ...",
                     )
-                    obs_ts_k = tf.split(obs_k, self.logprob_batch_size, dim=0)
+                    obs_ts_k = tf.split(obs_k, self.logprob_batch_size, axis=0)
                     for i, obs_t in enumerate(obs_ts_k):
                         obs_ts[i]["state"] = obs_t
                     values_trajs = np.empty((0, self.n_envs))
                     for obs in obs_ts:
-                        values = self.model.critic(obs).cpu().numpy().flatten()
+                        values = self.model.critic(obs).numpy().flatten()
                         values_trajs = np.vstack(
                             (values_trajs, values.reshape(-1, self.n_envs))
                         )
@@ -210,7 +210,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                         tf.convert_to_tensor(chains_trajs, dtype=tf.float32).gpu(),
                         "s e t h d -> (s e) t h d",
                     )
-                    chains_ts = tf.split(chains_t, self.logprob_batch_size, dim=0)
+                    chains_ts = tf.split(chains_t, self.logprob_batch_size, axis=0)
                     logprobs_trajs = np.empty(
                         shape=(
                             0,
@@ -220,7 +220,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                         )
                     )
                     for obs, chains in zip(obs_ts, chains_ts):
-                        logprobs = self.model.get_logprobs(obs, chains).cpu().numpy()
+                        logprobs = self.model.get_logprobs(obs, chains).numpy()
                         logprobs_trajs = np.vstack(
                             (
                                 logprobs_trajs,
@@ -243,12 +243,13 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                     lastgaelam = 0
                     for t in reversed(range(self.n_steps)):
                         if t == self.n_steps - 1:
-                            nextvalues = (
-                                self.model.critic(obs_venv_ts)
-                                .reshape(1, -1)
-                                .cpu()
-                                .numpy()
-                            )
+                            # nextvalues = (
+                            #     self.model.critic(obs_venv_ts)
+                            #     .reshape(1, -1)
+                            #     .cpu()
+                            #     .numpy()
+                            # )
+                            nextvalues = tf.reshape(self.model.critic(obs_venv_ts), (1, -1)).numpy()
                         else:
                             nextvalues = values_trajs[t + 1]
                         nonterminal = 1.0 - terminated_trajs[t]
@@ -257,8 +258,8 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                                 + self.gamma * nextvalues * nonterminal \
                                 - values_trajs[t]
                         # A = delta_t + gamma*lamdba*delta_{t+1} + ...
-                        advantages_trajs[t] = lastgaelam = delta \
-                                                           + self.gamma * self.gae_lambda * nonterminal * lastgaelam
+                        lastgaelam = delta + self.gamma * self.gae_lambda * nonterminal * lastgaelam
+                        advantages_trajs[t] = lastgaelam
                     returns_trajs = advantages_trajs + values_trajs
 
                 # k for environment step
@@ -365,7 +366,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                         break
 
                 # Explained variation of future rewards using value function
-                y_pred, y_true = values_k.cpu().numpy(), returns_k.cpu().numpy()
+                y_pred, y_true = values_k.numpy(), returns_k.numpy()
                 var_y = np.var(y_true)
                 explained_var = (
                     np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
