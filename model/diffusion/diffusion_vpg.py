@@ -371,27 +371,18 @@ class VPGDiffusion(DiffusionModel):
         #     for key in cond
         # }  # less memory usage than einops?
         
-        cond = {
-            key: tf.reshape(
-                tf.tile(
-                    tf.expand_dims(cond[key], axis=1),  # Equivalent to unsqueeze(1)
-                    multiples=[1, self.ft_denoising_steps] + [1] * (len(cond[key].shape) - 1)  # Equivalent to repeat(1, self.ft_denoising_steps, ...)
-                ),
-                (1, -1)  # Equivalent to flatten(start_dim=0, end_dim=1)
-            )[0]
-            for key in cond
-        }
-
+        for key in cond:
+            temp = cond[key]
+            temp = tf.expand_dims(temp, axis=1)
+            temp = tf.tile(temp, multiples=[1, self.ft_denoising_steps] + [1] * (temp.shape - 1))
+            temp = tf.reshape(temp, (-1, *temp.shape[2:]))
+            cond[key] = temp
 
         # Repeat t for batch dim, keep it 1-dim
         if self.use_ddim:
             t_single = self.ddim_t[-self.ft_denoising_steps :]
         else:
-            t_single = tf.range(
-                start=self.ft_denoising_steps - 1,
-                limit=-1,
-                delta=-1
-            ).gpu()
+            t_single = tf.identity(tf.range(self.ft_denoising_steps - 1, -1, -1))
             # 4,3,2,1,0,4,3,2,1,0,...,4,3,2,1,0
         # t_all = t_single.repeat(chains.shape[0], 1).flatten()
         t_all = tf.reshape(
