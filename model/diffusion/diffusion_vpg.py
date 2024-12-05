@@ -167,7 +167,8 @@ class VPGDiffusion(DiffusionModel):
         # actor = self.actor if use_base_policy else self.actor_ft
 
         # overwrite noise for fine-tuning steps
-        if tf.reduce_sum(tf.cast(ft_indices, tf.int32)) > 0:
+        # if tf.reduce_sum(tf.cast(ft_indices, tf.int32)) > 0:
+        if tf.identity(ft_indices)[0] == True:
             cond_ft = {key: cond[key][ft_indices] for key in cond}
             # noise_ft = actor(x[ft_indices], t[ft_indices], cond=cond_ft)
             if use_base_policy:
@@ -239,7 +240,7 @@ class VPGDiffusion(DiffusionModel):
                 + extract(self.ddpm_mu_coef2, t, x.shape) * x
             )
             logvar = extract(self.ddpm_logvar_clipped, t, x.shape)
-            etas = tf.ones_like(mu).gpu()  # always one for DDPM
+            etas = tf.identity(tf.ones_like(mu))  # always one for DDPM
         return mu, logvar, etas
 
     # override
@@ -274,7 +275,9 @@ class VPGDiffusion(DiffusionModel):
         min_sampling_denoising_std = self.get_min_sampling_denoising_std()
 
         # Loop
-        x = tf.random.normal((B, self.horizon_steps, self.action_dim)).gpu()
+        x = tf.identity(
+            tf.random.normal((B, self.horizon_steps, self.action_dim))
+        )
         if self.use_ddim:
             t_all = self.ddim_t
         else:
@@ -360,13 +363,25 @@ class VPGDiffusion(DiffusionModel):
             entropy (if get_ent=True):  (B x K, Ta)
         """
         # Repeat cond for denoising_steps, flatten batch and time dimensions
+        # cond = {
+        #     key: cond[key]
+        #     .unsqueeze(1)
+        #     .repeat(1, self.ft_denoising_steps, *(1,) * (cond[key].ndim - 1))
+        #     .flatten(start_dim=0, end_dim=1)
+        #     for key in cond
+        # }  # less memory usage than einops?
+        
         cond = {
-            key: cond[key]
-            .unsqueeze(1)
-            .repeat(1, self.ft_denoising_steps, *(1,) * (cond[key].ndim - 1))
-            .flatten(start_dim=0, end_dim=1)
+            key: tf.reshape(
+                tf.tile(
+                    tf.expand_dims(cond[key], axis=1),  # Equivalent to unsqueeze(1)
+                    multiples=[1, self.ft_denoising_steps] + [1] * (len(cond[key].shape) - 1)  # Equivalent to repeat(1, self.ft_denoising_steps, ...)
+                ),
+                (1, -1)  # Equivalent to flatten(start_dim=0, end_dim=1)
+            )[0]
             for key in cond
-        }  # less memory usage than einops?
+        }
+
 
         # Repeat t for batch dim, keep it 1-dim
         if self.use_ddim:
@@ -378,13 +393,17 @@ class VPGDiffusion(DiffusionModel):
                 delta=-1
             ).gpu()
             # 4,3,2,1,0,4,3,2,1,0,...,4,3,2,1,0
-        t_all = t_single.repeat(chains.shape[0], 1).flatten()
+        # t_all = t_single.repeat(chains.shape[0], 1).flatten()
+        t_all = tf.reshape(
+            tf.tile(tf.expand_dims(t_single, 0), multiples=(chains.shape[0], 1)), (1,-1)
+        )[0]
+
         if self.use_ddim:
             indices_single = tf.range(
                 start=self.ddim_steps - self.ft_denoising_steps,
                 limit=self.ddim_steps,
             ).gpu()
-            indices = indices_single.repeat(chains.shape[0])
+            indices = tf.tile(tf.expand_dims(indices_single, 0), multiples=(chains.shape[0], 1))
         else:
             indices = None
 
@@ -393,8 +412,8 @@ class VPGDiffusion(DiffusionModel):
         chains_next = chains[:, 1:]
 
         # Flatten first two dimensions
-        chains_prev = chains_prev.reshape(-1, self.horizon_steps, self.action_dim)
-        chains_next = chains_next.reshape(-1, self.horizon_steps, self.action_dim)
+        chains_prev = tf.reshape(chains_prev, (-1, self.horizon_steps, self.action_dim))
+        chains_next = tf.reshape(chains_next, (-1, self.horizon_steps, self.action_dim))
 
         # Forward pass with previous chains
         next_mean, logvar, eta = self.p_mean_var(

@@ -37,7 +37,7 @@ class CriticObs(tf.keras.Model):
             use_layernorm=use_layernorm,
         )
 
-    def forward(self, cond: Union[dict, tf.Tensor]):
+    def call(self, cond: Union[dict, tf.Tensor]):
         """
         cond: dict with key state/rgb; more recent obs at the end
             state: (B, To, Do)
@@ -47,7 +47,7 @@ class CriticObs(tf.keras.Model):
             B = len(cond["state"])
 
             # flatten history
-            state = cond["state"].view(B, -1)
+            state = tf.reshape(cond["state"], (B, -1))
         else:
             state = cond
         q1 = self.Q1(state)
@@ -89,7 +89,7 @@ class CriticObsAct(tf.keras.Model):
                 use_layernorm=use_layernorm,
             )
 
-    def forward(self, cond: dict, action):
+    def call(self, cond: dict, action):
         """
         cond: dict with key state/rgb; more recent obs at the end
             state: (B, To, Do)
@@ -98,10 +98,10 @@ class CriticObsAct(tf.keras.Model):
         B = len(cond["state"])
 
         # flatten history
-        state = cond["state"].view(B, -1)
+        state = tf.reshape(cond["state"], (B, -1))
 
         # flatten action
-        action = action.view(B, -1)
+        action = tf.reshape(action, (B, -1))
 
         x = tf.concat((state, action), dim=-1)
         if hasattr(self, "Q2"):
@@ -154,7 +154,7 @@ class ViTCritic(CriticObs):
             self.aug = RandomShiftsAug(pad=4)
         self.augment = augment
 
-    def forward(
+    def call(
         self,
         cond: dict,
         no_augment=False,
@@ -170,7 +170,7 @@ class ViTCritic(CriticObs):
         B, T_rgb, C, H, W = cond["rgb"].shape
 
         # flatten history
-        state = cond["state"].view(B, -1)
+        state = tf.reshape(cond["state"], (B, -1))
 
         # Take recent images --- sometimes we want to use fewer img_cond_steps than cond_steps (e.g., 1 image but 3 prio)
         rgb = cond["rgb"][:, -self.img_cond_steps :]
@@ -194,13 +194,13 @@ class ViTCritic(CriticObs):
                 rgb2 = self.aug(rgb2)
             feat1 = self.backbone(rgb1)
             feat2 = self.backbone(rgb2)
-            feat1 = self.compress1.forward(feat1, state)
-            feat2 = self.compress2.forward(feat2, state)
+            feat1 = self.compress1(feat1, state)
+            feat2 = self.compress2(feat2, state)
             feat = tf.concat([feat1, feat2], dim=-1)
         else:  # single image
             if self.augment and not no_augment:
                 rgb = self.aug(rgb)  # uint8 -> float32
             feat = self.backbone(rgb)
-            feat = self.compress.forward(feat, state)
+            feat = self.compress(feat, state)
         feat = tf.concat([feat, state], dim=-1)
-        return super().forward(feat)
+        return super().call(feat)

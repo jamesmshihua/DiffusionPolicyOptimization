@@ -184,8 +184,8 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
             # Update models
             if not eval_mode:
                 with tf.GradientTape() as tape:
-                    obs_trajs["state"] = (
-                        tf.convert_to_tensor(obs_trajs["state"], dtype=tf.float32).gpu()
+                    obs_trajs["state"] = tf.identity(
+                        tf.convert_to_tensor(obs_trajs["state"], dtype=tf.float32)
                     )
 
                     # Calculate value and logprobs - split into batches to prevent out of memory
@@ -197,7 +197,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                         obs_trajs["state"],
                         "s e ... -> (s e) ...",
                     )
-                    obs_ts_k = tf.split(obs_k, self.logprob_batch_size, axis=0)
+                    obs_ts_k = tf.split(obs_k, num_split, axis=0)
                     for i, obs_t in enumerate(obs_ts_k):
                         obs_ts[i]["state"] = obs_t
                     values_trajs = np.empty((0, self.n_envs))
@@ -207,10 +207,10 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                             (values_trajs, values.reshape(-1, self.n_envs))
                         )
                     chains_t = einops.rearrange(
-                        tf.convert_to_tensor(chains_trajs, dtype=tf.float32).gpu(),
+                        tf.identity(tf.convert_to_tensor(chains_trajs, dtype=tf.float32)),
                         "s e t h d -> (s e) t h d",
                     )
-                    chains_ts = tf.split(chains_t, self.logprob_batch_size, axis=0)
+                    chains_ts = tf.split(chains_t, num_split, axis=0)
                     logprobs_trajs = np.empty(
                         shape=(
                             0,
