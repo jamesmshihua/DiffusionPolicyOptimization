@@ -114,7 +114,7 @@ class CosineAnnealingWarmupRestarts2(tf.keras.optimizers.schedules.LearningRateS
         else:
             return (self.initial_learning_rate
                     + (self.max_lr - self.initial_learning_rate)
-                    * (1 + math.cos(math.pi * (self.step_in_cycle - self.warmup_steps)
+                    * (1 + math.cos(math.pi * (int(self.step_in_cycle) - self.warmup_steps)
                                     / (self.cur_cycle_steps - self.warmup_steps)))
                     / 2)
 
@@ -130,6 +130,7 @@ class CosineAnnealingWarmupRestarts2(tf.keras.optimizers.schedules.LearningRateS
         #                 + self.warmup_steps
         #         )
         # else:
+        step = int(step)
         if step >= self.first_cycle_steps:
             if self.cycle_mult == 1.0:
                 self.step_in_cycle = step % self.first_cycle_steps

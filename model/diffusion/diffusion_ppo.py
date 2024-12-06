@@ -29,7 +29,7 @@ class PPODiffusion(VPGDiffusion):
         self.clip_advantage_upper_quantile = clip_advantage_upper_quantile
         self.norm_adv = norm_adv
 
-    def loss(
+    def c_loss(
         self,
         obs,
         chains_prev,
@@ -47,16 +47,16 @@ class PPODiffusion(VPGDiffusion):
             obs, chains_prev, chains_next, denoising_inds, get_ent=True
         )
         entropy_loss = -tf.reduce_mean(eta)
-        newlogprobs = tf.clip_by_value(newlogprobs, clip_value_min=-5, clip_value_max=2)
-        oldlogprobs = tf.clip_by_value(oldlogprobs, clip_value_min=-5, clip_value_max=2)
+        newlogprobs = tf.clip_by_value(newlogprobs, -5, 2)
+        oldlogprobs = tf.clip_by_value(oldlogprobs, -5, 2)
 
         # Apply reward horizon limitation
         newlogprobs = newlogprobs[:, :reward_horizon, :]
         oldlogprobs = oldlogprobs[:, :reward_horizon, :]
 
         # Mean over dimensions
-        newlogprobs = tf.reduce_mean(tf.reshape(newlogprobs, (-1,)))
-        oldlogprobs = tf.reduce_mean(tf.reshape(oldlogprobs, (-1,)))
+        newlogprobs = tf.reshape(tf.reduce_mean(newlogprobs, axis=(-1, -2)), (-1))
+        oldlogprobs = tf.reshape(tf.reduce_mean(oldlogprobs, axis=(-1, -2)), (-1))
 
         # Optional behavioral cloning loss
         bc_loss = 0
@@ -67,7 +67,7 @@ class PPODiffusion(VPGDiffusion):
             bc_logprobs = self.get_logprobs(
                 obs, samples.chains, get_ent=False, use_base_policy=False
             )
-            bc_logprobs = tf.clip_by_value(bc_logprobs, clip_value_min=-5, clip_value_max=2)
+            bc_logprobs = tf.clip_by_value(bc_logprobs, -5, 2)
             bc_loss = -tf.reduce_mean(bc_logprobs)
 
         # Normalize advantages
@@ -75,9 +75,9 @@ class PPODiffusion(VPGDiffusion):
             advantages = (advantages - tf.reduce_mean(advantages)) / (tf.math.reduce_std(advantages) + 1e-8)
 
         # Quantile clipping for advantages
-        advantage_min = tfp.stats.percentile(advantages, self.clip_advantage_lower_quantile * 100)
-        advantage_max = tfp.stats.percentile(advantages, self.clip_advantage_upper_quantile * 100)
-        advantages = tf.clip_by_value(advantages, clip_value_min=advantage_min, clip_value_max=advantage_max)
+        # advantage_min = tfp.stats.percentile(advantages, self.clip_advantage_lower_quantile * 100)
+        # advantage_max = tfp.stats.percentile(advantages, self.clip_advantage_upper_quantile * 100)
+        # advantages = tf.clip_by_value(advantages, advantage_min, advantage_max)
 
         # Discounted denoising
         discount_factors = tf.pow(

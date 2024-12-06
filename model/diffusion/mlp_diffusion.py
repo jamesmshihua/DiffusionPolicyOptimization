@@ -83,7 +83,7 @@ class DiffusionMLP(tf.keras.Model):
         x = tf.concat([x, time_emb, state], axis=-1)
 
         # mlp head
-        out = self.mlp_mean(x)
+        out = self.mlp_mean(x, training=True)
         return tf.reshape(out, [B, Ta, Da])
 
     def get_config(self):

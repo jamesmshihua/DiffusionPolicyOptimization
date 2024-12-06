@@ -33,30 +33,30 @@ class TrainPPOAgent(TrainAgent):
 
         # use cosine scheduler with linear warmup
         self.actor_lr_scheduler = CosineAnnealingWarmupRestarts2(
-            initial_learning_rate=0.001,
+            initial_learning_rate=cfg.train.actor_lr,
             first_cycle_steps=cfg.train.actor_lr_scheduler.first_cycle_steps,
             cycle_mult=1.0,
-            max_lr=cfg.train.actor_lr,
+            max_lr=10 * cfg.train.actor_lr,
             min_lr=cfg.train.actor_lr_scheduler.min_lr,
             warmup_steps=cfg.train.actor_lr_scheduler.warmup_steps,
             gamma=1.0,
         )
         # Optimizer
-        self.actor_optimizer = tf.keras.optimizers.Adam(
+        self.actor_optimizer = tf.keras.optimizers.AdamW(
             # self.model.actor_ft.parameters(),
             learning_rate=self.actor_lr_scheduler,
             decay=cfg.train.actor_weight_decay,
         )
         self.critic_lr_scheduler = CosineAnnealingWarmupRestarts2(
-            initial_learning_rate=0.001,
+            initial_learning_rate=cfg.train.critic_lr,
             first_cycle_steps=cfg.train.critic_lr_scheduler.first_cycle_steps,
             cycle_mult=1.0,
-            max_lr=cfg.train.critic_lr,
+            max_lr=10 * cfg.train.critic_lr,
             min_lr=cfg.train.critic_lr_scheduler.min_lr,
             warmup_steps=cfg.train.critic_lr_scheduler.warmup_steps,
             gamma=1.0,
         )
-        self.critic_optimizer = tf.keras.optimizers.Adam(
+        self.critic_optimizer = tf.keras.optimizers.AdamW(
             # self.model.critic.parameters(),
             learning_rate=self.critic_lr_scheduler,
             decay=cfg.train.critic_weight_decay,
@@ -93,7 +93,7 @@ class TrainPPOAgent(TrainAgent):
         """Not used anywhere currently"""
         new_scheduler = CosineAnnealingWarmupRestarts2(**self.actor_lr_scheduler.get_config())
         self.actor_lr_scheduler = new_scheduler
-        new_optimizer = tf.keras.optimizers.Adam(
+        new_optimizer = tf.keras.optimizers.AdamW(
             # self.model.actor_ft.parameters(),
             learning_rate=self.actor_lr_scheduler,
             decay=self.cfg.train.actor_weight_decay,

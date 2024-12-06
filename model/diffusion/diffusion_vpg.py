@@ -75,20 +75,6 @@ class VPGDiffusion(DiffusionModel):
         # Re-name network to actor
         self.actor = self.network
 
-        # Make a copy of the original model
-        self.actor_ft = copy.deepcopy(self.actor)
-        logging.info("Cloned model for fine-tuning")
-
-        # Turn off gradients for original model
-        # for param in self.actor.parameters():
-        #     param.requires_grad = False
-        logging.info("Turned off gradients of the pretrained network")
-        logging.info(
-            f"Number of finetuned parameters: {sum(p.numel() for p in self.actor_ft.trainable_variables if p.requires_grad)}"
-        )
-
-        # Value function
-        self.critic = critic
         if network_path is not None:
             # checkpoint = torch.load(
             #     network_path, map_location=self.device, weights_only=True
@@ -104,11 +90,25 @@ class VPGDiffusion(DiffusionModel):
             
             self.actor(dummy_x_noisy, dummy_t, cond=dummy_cond)
             self.actor.load_weights(self.network_path)
-            self.actor(dummy_x_noisy, dummy_t, cond=dummy_cond)
-            
-            # self.critic(dummy_x_noisy, dummy_t, cond=dummy_cond)
-            # self.critic.load_weights(self.network_path)
 
+        # Make a copy of the original model
+        self.actor_ft = copy.deepcopy(self.actor)
+        self.actor_ft(dummy_x_noisy, dummy_t, cond=dummy_cond)
+        self.actor_ft.load_weights(self.network_path)
+        logging.info("Cloned model for fine-tuning")
+
+        # Turn off gradients for original model
+        for param in self.actor.trainable_variables:
+            param.trainable = False
+        logging.info("Turned off gradients of the pretrained network")
+        logging.info(
+            f"Number of finetuned parameters: {sum(tf.reduce_prod(p.shape) for p in self.actor_ft.trainable_variables)}"
+        )
+
+        # Value function
+        self.critic = critic
+        self.critic(dummy_cond)
+        
     # ---------- Sampling ----------#
 
     def step(self):
@@ -135,8 +135,8 @@ class VPGDiffusion(DiffusionModel):
             # update actor
             self.actor = self.actor_ft
             self.actor_ft = copy.deepcopy(self.actor)
-            for param in self.actor.parameters():
-                param.requires_grad = False
+            # for param in self.actor.parameters():
+            #     param.requires_grad = False
             logging.info(
                 f"Finished annealing fine-tuning denoising steps to {self.ft_denoising_steps}"
             )
@@ -202,7 +202,7 @@ class VPGDiffusion(DiffusionModel):
             x_recon = noise
         if self.denoised_clip_value is not None:
             # x_recon.clamp_(-self.denoised_clip_value, self.denoised_clip_value)
-            tf.clip_by_value(x_recon, -self.denoised_clip_value, self.denoised_clip_value)
+            x_recon = tf.clip_by_value(x_recon, -self.denoised_clip_value, self.denoised_clip_value)
             if self.use_ddim:
                 # re-calculate noise based on clamped x_recon - default to false in HF, but let's use it here
                 noise = (x - alpha ** (0.5) * x_recon) / sqrt_one_minus_alpha
@@ -374,7 +374,7 @@ class VPGDiffusion(DiffusionModel):
         for key in cond:
             temp = cond[key]
             temp = tf.expand_dims(temp, axis=1)
-            temp = tf.tile(temp, multiples=[1, self.ft_denoising_steps] + [1] * (temp.shape - 1))
+            temp = tf.tile(temp, multiples=[1, self.ft_denoising_steps] + [1] * (len(temp.shape) - 2))
             temp = tf.reshape(temp, (-1, *temp.shape[2:]))
             cond[key] = temp
 
@@ -415,7 +415,7 @@ class VPGDiffusion(DiffusionModel):
             use_base_policy=use_base_policy,
         )
         std = tf.exp(0.5 * logvar)
-        std = tf.clip_by_value(std, min=self.min_logprob_denoising_std)
+        std = tf.clip_by_value(std, self.min_logprob_denoising_std, 1e6)
         dist = tfp.distributions.normal.Normal(next_mean, std)
 
         # Get logprobs with gaussian
@@ -453,21 +453,12 @@ class VPGDiffusion(DiffusionModel):
         if self.use_ddim:
             t_single = self.ddim_t[-self.ft_denoising_steps :]
         else:
-            t_single = tf.range(
-                start=self.ft_denoising_steps - 1,
-                limit=-1,
-                step=-1,
-                device=self.device,
-            )
+            t_single = tf.identity(tf.range(self.ft_denoising_steps-1, -1, -1))
             # 4,3,2,1,0,4,3,2,1,0,...,4,3,2,1,0
-        t_all = t_single[denoising_inds]
+        t_all = tf.gather(t_single, denoising_inds)
         if self.use_ddim:
-            ddim_indices_single = tf.range(
-                start=self.ddim_steps - self.ft_denoising_steps,
-                limit=self.ddim_steps,
-                device=self.device,
-            )  # only used for DDIM
-            ddim_indices = ddim_indices_single[denoising_inds]
+            ddim_indices_single = tf.identity(tf.range(self.ddim_steps - self.ft_denoising_steps, self.ddim_steps))  # only used for DDIM
+            ddim_indices = tf.gather(ddim_indices_single, denoising_inds)
         else:
             ddim_indices = None
 
@@ -489,7 +480,7 @@ class VPGDiffusion(DiffusionModel):
             return log_prob, eta
         return log_prob
 
-    def loss(self, cond, chains, reward):
+    def c_loss(self, cond, chains, reward):
         """
         REINFORCE loss. Not used right now.
 

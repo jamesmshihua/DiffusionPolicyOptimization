@@ -98,6 +98,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                 )
 
             # Collect a set of trajectories from env
+            # with tf.profiler.experimental.Profile("./profiling"):
             for step in range(self.n_steps):
                 if step % 10 == 0:
                     print(f"Processed step {step} of {self.n_steps}")
@@ -111,16 +112,12 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                     deterministic=eval_mode,
                     return_chain=True,
                 )
-                output_venv = (
-                    samples.trajectories.numpy()
-                )  # n_env x horizon x act
-                chains_venv = (
-                    samples.chains.numpy()
-                )  # n_env x denoising x horizon x act
+                output_venv = samples.trajectories  # n_env x horizon x act
+                chains_venv = samples.chains  # n_env x denoising x horizon x act
                 action_venv = output_venv[:, : self.act_steps]
 
                 # Apply multistep action
-                obs_venv, reward_venv, terminated_venv, truncated_venv, info_venv = self.venv.step(action_venv)
+                obs_venv, reward_venv, terminated_venv, truncated_venv, info_venv = self.venv.step(np.array(action_venv))
                 done_venv = terminated_venv | truncated_venv
                 if self.save_full_observations:  # state-only
                     obs_full_venv = np.array(
@@ -138,7 +135,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
 
                 # count steps --- not acounting for done within action chunk
                 cnt_train_step += self.n_envs * self.act_steps if not eval_mode else 0
-
+        
             # Summarize episode reward --- this needs to be handled differently depending on whether the environment is reset after each iteration. Only count episodes that finish within the iteration.
             episodes_start_end = []
             for env_ind in range(self.n_envs):
@@ -183,84 +180,83 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
 
             # Update models
             if not eval_mode:
-                with tf.GradientTape() as tape:
-                    obs_trajs["state"] = tf.identity(
-                        tf.convert_to_tensor(obs_trajs["state"], dtype=tf.float32)
+                obs_trajs["state"] = tf.identity(
+                    tf.convert_to_tensor(obs_trajs["state"], dtype=tf.float32)
+                )
+
+                # Calculate value and logprobs - split into batches to prevent out of memory
+                num_split = math.ceil(
+                    self.n_envs * self.n_steps / self.logprob_batch_size
+                )
+                obs_ts = [{} for _ in range(num_split)]
+                obs_k = einops.rearrange(
+                    obs_trajs["state"],
+                    "s e ... -> (s e) ...",
+                )
+                obs_ts_k = tf.split(obs_k, num_split, axis=0)
+                for i, obs_t in enumerate(obs_ts_k):
+                    obs_ts[i]["state"] = obs_t
+                values_trajs = np.empty((0, self.n_envs))
+                for obs in obs_ts:
+                    values = self.model.critic(obs).numpy().flatten()
+                    values_trajs = np.vstack(
+                        (values_trajs, values.reshape(-1, self.n_envs))
+                    )
+                chains_t = einops.rearrange(
+                    tf.identity(tf.convert_to_tensor(chains_trajs, dtype=tf.float32)),
+                    "s e t h d -> (s e) t h d",
+                )
+                chains_ts = tf.split(chains_t, num_split, axis=0)
+                logprobs_trajs = np.empty(
+                    shape=(
+                        0,
+                        self.model.ft_denoising_steps,
+                        self.horizon_steps,
+                        self.action_dim,
+                    )
+                )
+                for obs, chains in zip(obs_ts, chains_ts):
+                    logprobs = self.model.get_logprobs(obs, chains).numpy()
+                    logprobs_trajs = np.vstack(
+                        (
+                            logprobs_trajs,
+                            logprobs.reshape(-1, *logprobs_trajs.shape[1:]),
+                        )
                     )
 
-                    # Calculate value and logprobs - split into batches to prevent out of memory
-                    num_split = math.ceil(
-                        self.n_envs * self.n_steps / self.logprob_batch_size
+                # normalize reward with running variance if specified
+                if self.reward_scale_running:
+                    reward_trajs_transpose = self.running_reward_scaler(
+                        reward=reward_trajs.T, first=firsts_trajs[:-1].T
                     )
-                    obs_ts = [{} for _ in range(num_split)]
-                    obs_k = einops.rearrange(
-                        obs_trajs["state"],
-                        "s e ... -> (s e) ...",
-                    )
-                    obs_ts_k = tf.split(obs_k, num_split, axis=0)
-                    for i, obs_t in enumerate(obs_ts_k):
-                        obs_ts[i]["state"] = obs_t
-                    values_trajs = np.empty((0, self.n_envs))
-                    for obs in obs_ts:
-                        values = self.model.critic(obs).numpy().flatten()
-                        values_trajs = np.vstack(
-                            (values_trajs, values.reshape(-1, self.n_envs))
-                        )
-                    chains_t = einops.rearrange(
-                        tf.identity(tf.convert_to_tensor(chains_trajs, dtype=tf.float32)),
-                        "s e t h d -> (s e) t h d",
-                    )
-                    chains_ts = tf.split(chains_t, num_split, axis=0)
-                    logprobs_trajs = np.empty(
-                        shape=(
-                            0,
-                            self.model.ft_denoising_steps,
-                            self.horizon_steps,
-                            self.action_dim,
-                        )
-                    )
-                    for obs, chains in zip(obs_ts, chains_ts):
-                        logprobs = self.model.get_logprobs(obs, chains).numpy()
-                        logprobs_trajs = np.vstack(
-                            (
-                                logprobs_trajs,
-                                logprobs.reshape(-1, *logprobs_trajs.shape[1:]),
-                            )
-                        )
+                    reward_trajs = reward_trajs_transpose.T
 
-                    # normalize reward with running variance if specified
-                    if self.reward_scale_running:
-                        reward_trajs_transpose = self.running_reward_scaler(
-                            reward=reward_trajs.T, first=firsts_trajs[:-1].T
-                        )
-                        reward_trajs = reward_trajs_transpose.T
-
-                    # bootstrap value with GAE if not terminal - apply reward scaling with constant if specified
-                    obs_venv_ts = {
-                        "state": tf.convert_to_tensor(obs_venv["state"], dtype=tf.float32).gpu(),
-                    }
-                    advantages_trajs = np.zeros_like(reward_trajs)
-                    lastgaelam = 0
-                    for t in reversed(range(self.n_steps)):
-                        if t == self.n_steps - 1:
-                            # nextvalues = (
-                            #     self.model.critic(obs_venv_ts)
-                            #     .reshape(1, -1)
-                            #     .cpu()
-                            #     .numpy()
-                            # )
-                            nextvalues = tf.reshape(self.model.critic(obs_venv_ts), (1, -1)).numpy()
-                        else:
-                            nextvalues = values_trajs[t + 1]
-                        nonterminal = 1.0 - terminated_trajs[t]
-                        # delta = r + gamma*V(st+1) - V(st)
-                        delta = reward_trajs[t] * self.reward_scale_const \
-                                + self.gamma * nextvalues * nonterminal \
-                                - values_trajs[t]
-                        # A = delta_t + gamma*lamdba*delta_{t+1} + ...
-                        lastgaelam = delta + self.gamma * self.gae_lambda * nonterminal * lastgaelam
-                        advantages_trajs[t] = lastgaelam
-                    returns_trajs = advantages_trajs + values_trajs
+                # bootstrap value with GAE if not terminal - apply reward scaling with constant if specified
+                obs_venv_ts = {
+                    "state": tf.identity(tf.convert_to_tensor(obs_venv["state"], dtype=tf.float32)),
+                }
+                advantages_trajs = np.zeros_like(reward_trajs)
+                lastgaelam = 0
+                for t in reversed(range(self.n_steps)):
+                    if t == self.n_steps - 1:
+                        # nextvalues = (
+                        #     self.model.critic(obs_venv_ts)
+                        #     .reshape(1, -1)
+                        #     .cpu()
+                        #     .numpy()
+                        # )
+                        nextvalues = tf.reshape(self.model.critic(obs_venv_ts), (1, -1)).numpy()
+                    else:
+                        nextvalues = values_trajs[t + 1]
+                    nonterminal = 1.0 - terminated_trajs[t]
+                    # delta = r + gamma*V(st+1) - V(st)
+                    delta = reward_trajs[t] * self.reward_scale_const \
+                            + self.gamma * nextvalues * nonterminal \
+                            - values_trajs[t]
+                    # A = delta_t + gamma*lamdba*delta_{t+1} + ...
+                    lastgaelam = delta + self.gamma * self.gae_lambda * nonterminal * lastgaelam
+                    advantages_trajs[t] = lastgaelam
+                returns_trajs = advantages_trajs + values_trajs
 
                 # k for environment step
                 obs_k = {
@@ -270,13 +266,13 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                     )
                 }
                 chains_k = einops.rearrange(
-                    tf.convert_to_tensor(chains_trajs, dtype=tf.float32).gpu(),
+                    tf.identity(tf.convert_to_tensor(chains_trajs, dtype=tf.float32)),
                     "s e t h d -> (s e) t h d",
                 )
-                returns_k = tf.convert_to_tensor(returns_trajs, dtype=tf.float32).gpu().reshape(-1)
-                values_k = tf.convert_to_tensor(values_trajs, dtype=tf.float32).gpu().reshape(-1)
-                advantages_k = tf.convert_to_tensor(advantages_trajs, dtype=tf.float32).gpu().reshape(-1)
-                logprobs_k = tf.convert_to_tensor(logprobs_trajs, dtype=tf.float32).gpu().float()
+                returns_k = tf.reshape(tf.identity(tf.convert_to_tensor(returns_trajs, dtype=tf.float32)), (-1))
+                values_k = tf.reshape(tf.identity(tf.convert_to_tensor(values_trajs, dtype=tf.float32)), (-1))
+                advantages_k = tf.reshape(tf.identity(tf.convert_to_tensor(advantages_trajs, dtype=tf.float32)), (-1))
+                logprobs_k = tf.convert_to_tensor(logprobs_trajs, dtype=tf.float32)
 
                 # Update policy and critic
                 total_steps = self.n_steps * self.n_envs * self.model.ft_denoising_steps
@@ -284,7 +280,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                 for update_epoch in range(self.update_epochs):
                     # for each epoch, go through all data in batches
                     flag_break = False
-                    inds_k = tf.random.shuffle(total_steps)
+                    inds_k = tf.random.shuffle(tf.range(total_steps))
                     num_batch = max(1, total_steps // self.batch_size)  # skip last ones
                     for batch in range(num_batch):
                         start = batch * self.batch_size
@@ -294,77 +290,87 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                             inds_b,
                             (self.n_steps * self.n_envs, self.model.ft_denoising_steps),
                         )
-                        obs_b = {"state": obs_k["state"][batch_inds_b]}
-                        chains_prev_b = chains_k[batch_inds_b, denoising_inds_b]
-                        chains_next_b = chains_k[batch_inds_b, denoising_inds_b + 1]
-                        returns_b = returns_k[batch_inds_b]
-                        values_b = values_k[batch_inds_b]
-                        advantages_b = advantages_k[batch_inds_b]
-                        logprobs_b = logprobs_k[batch_inds_b, denoising_inds_b]
-
-                        # get loss
-                        (
-                            pg_loss,
-                            entropy_loss,
-                            v_loss,
-                            clipfrac,
-                            approx_kl,
-                            ratio,
-                            bc_loss,
-                            eta,
-                        ) = self.model.c_loss(
-                            obs_b,
-                            chains_prev_b,
-                            chains_next_b,
-                            denoising_inds_b,
-                            returns_b,
-                            values_b,
-                            advantages_b,
-                            logprobs_b,
-                            use_bc_loss=self.use_bc_loss,
-                            reward_horizon=self.reward_horizon,
+                        obs_b = {"state": tf.gather(obs_k["state"], batch_inds_b)}
+                        chains_prev_b = tf.gather_nd(
+                            chains_k, 
+                            tf.transpose(tf.stack((batch_inds_b, denoising_inds_b)))
                         )
-                        loss = (
-                                pg_loss
-                                + entropy_loss * self.ent_coef
-                                + v_loss * self.vf_coef
-                                + bc_loss * self.bc_loss_coeff
+                        chains_next_b = tf.gather_nd(
+                            chains_k,
+                            tf.transpose(tf.stack((batch_inds_b, denoising_inds_b + 1)))
                         )
-                        clipfracs += [clipfrac]
-
-                        # update policy and critic
-                        # self.actor_optimizer.zero_grad()
-                        # self.critic_optimizer.zero_grad()
-                        # if self.learn_eta:
-                        #     self.eta_optimizer.zero_grad()
-                        # loss.backward()
-                        trainable_vars = self.model.trainable_variables
-                        gradients = tape.gradient(loss, trainable_vars)
-
-                        if self.itr >= self.n_critic_warmup_itr:
-                            if self.max_grad_norm is not None:
-                                # torch.nn.utils.clip_grad_norm_(
-                                #     self.model.actor_ft.parameters(), self.max_grad_norm
-                                # )
-                                clipped_gradients = [tf.clip_by_norm(grad, clip_norm=1.0) for grad in gradients]
-                                self.actor_optimizer.apply_gradients(zip(clipped_gradients, trainable_vars))
-                            else:
-                                self.actor_optimizer.apply_gradients(zip(gradients, trainable_vars))
-
-                        #     if self.learn_eta and batch % self.eta_update_interval == 0:
-                        #         self.eta_optimizer.step()
-                        # self.critic_optimizer.step()
-                        log.info(
-                            f"approx_kl: {approx_kl}, update_epoch: {update_epoch}, num_batch: {num_batch}"
+                        returns_b = tf.gather(returns_k, batch_inds_b)
+                        values_b = tf.gather(values_k, batch_inds_b)
+                        advantages_b = tf.gather(advantages_k, batch_inds_b)
+                        logprobs_b = tf.gather_nd(
+                            logprobs_k,
+                            tf.transpose(tf.stack((batch_inds_b, denoising_inds_b)))
                         )
+                        
+                        with tf.GradientTape() as tape:
+                            for p in self.model.trainable_variables:
+                                tape.watch(p.value)
+                            
+                            # get loss
+                            (
+                                pg_loss,
+                                entropy_loss,
+                                v_loss,
+                                clipfrac,
+                                approx_kl,
+                                ratio,
+                                bc_loss,
+                                eta,
+                            ) = self.model.c_loss(
+                                obs_b,
+                                chains_prev_b,
+                                chains_next_b,
+                                denoising_inds_b,
+                                returns_b,
+                                values_b,
+                                advantages_b,
+                                logprobs_b,
+                                use_bc_loss=self.use_bc_loss,
+                                reward_horizon=self.reward_horizon,
+                            )
+                            loss = pg_loss + v_loss * self.vf_coef
+                                # + entropy_loss * self.ent_coef
+                                # + bc_loss * self.bc_loss_coeff
+                            clipfracs += [clipfrac]
 
-                        # Stop gradient update if KL difference reaches target
-                        if self.target_kl is not None and approx_kl > self.target_kl:
-                            flag_break = True
+                            # update policy and critic
+                            # self.actor_optimizer.zero_grad()
+                            # self.critic_optimizer.zero_grad()
+                            # if self.learn_eta:
+                            #     self.eta_optimizer.zero_grad()
+                            # loss.backward()
+                            trainable_vars = self.model.trainable_variables
+                            gradients = tape.gradient(loss, trainable_vars)
+
+                            if self.itr >= self.n_critic_warmup_itr:
+                                if self.max_grad_norm is not None:
+                                    # torch.nn.utils.clip_grad_norm_(
+                                    #     self.model.actor_ft.parameters(), self.max_grad_norm
+                                    # )
+                                    clipped_gradients = [tf.clip_by_norm(grad, clip_norm=1.0) for grad in gradients]
+                                    self.actor_optimizer.apply_gradients(zip(clipped_gradients, trainable_vars))
+                                else:
+                                    self.actor_optimizer.apply_gradients(zip(gradients, trainable_vars))
+
+                            #     if self.learn_eta and batch % self.eta_update_interval == 0:
+                            #         self.eta_optimizer.step()
+                            # self.critic_optimizer.step()
+                            log.info(
+                                f"approx_kl: {approx_kl}, update_epoch: {update_epoch}, num_batch: {num_batch}"
+                            )
+
+                            # Stop gradient update if KL difference reaches target
+                            if self.target_kl is not None and approx_kl > self.target_kl:
+                                flag_break = True
+                                break
+                        if flag_break:
                             break
-                    if flag_break:
-                        break
-
+                
                 # Explained variation of future rewards using value function
                 y_pred, y_true = values_k.numpy(), returns_k.numpy()
                 var_y = np.var(y_true)
@@ -452,8 +458,8 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                                 "avg episode reward - train": avg_episode_reward,
                                 "num episode - train": num_episode_finished,
                                 "diffusion - min sampling std": diffusion_min_sampling_std,
-                                "actor lr": self.actor_optimizer.param_groups[0]["lr"],
-                                "critic lr": self.critic_optimizer.param_groups[0]["lr"],
+                                "actor lr": self.actor_lr_scheduler.get_lr(),
+                                "critic lr": self.critic_lr_scheduler.get_lr(),
                             },
                             step=self.itr,
                             commit=True,
