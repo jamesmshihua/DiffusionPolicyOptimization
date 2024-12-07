@@ -51,6 +51,10 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
         cnt_train_step = 0
         last_itr_eval = False
         done_venv = np.zeros((1, self.n_envs))
+        with tf.GradientTape() as tape:
+            for p in self.model.trainable_variables:
+                tape.watch(p.value)
+                
         while self.itr < self.n_train_itr:
             # Prepare video paths for each envs --- only applies for the first set of episodes if allowing reset within iteration and each iteration has multiple episodes from one env
             options_venv = [{} for _ in range(self.n_envs)]
@@ -308,8 +312,8 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                         )
                         
                         with tf.GradientTape() as tape:
-                            for p in self.model.trainable_variables:
-                                tape.watch(p.value)
+                            # for p in self.model.trainable_variables:
+                            #     tape.watch(p.value)
                             
                             # get loss
                             (
@@ -338,12 +342,6 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                                 # + bc_loss * self.bc_loss_coeff
                             clipfracs += [clipfrac]
 
-                            # update policy and critic
-                            # self.actor_optimizer.zero_grad()
-                            # self.critic_optimizer.zero_grad()
-                            # if self.learn_eta:
-                            #     self.eta_optimizer.zero_grad()
-                            # loss.backward()
                             trainable_vars = self.model.trainable_variables
                             gradients = tape.gradient(loss, trainable_vars)
 

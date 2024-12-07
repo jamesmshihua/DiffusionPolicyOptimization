@@ -18,12 +18,12 @@ def cosine_beta_schedule(timesteps, s=0.008, dtype=tf.float32):
 
 
 def extract(a, t, x_shape):
-    b = t.get_shape().as_list()[0]  # Get batch size
+    b = t.shape[0]  # Get batch size
     # log.info(f"Reshape size {[b] + [1] * (len(x_shape) - 1)}")
     out = tf.gather(a, t, axis=-1)
     return tf.reshape(out, [b] + [1] * (len(x_shape) - 1))
 
 
 def make_timesteps(batch_size, i, **kwargs):
-    t = tf.fill((batch_size,), i, name='timesteps')
+    t = tf.identity(tf.fill((batch_size,), i))
     return t

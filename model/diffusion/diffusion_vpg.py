@@ -159,16 +159,16 @@ class VPGDiffusion(DiffusionModel):
     ):
         noise = self.actor(x, t, cond=cond)
         if self.use_ddim:
-            ft_indices = (index >= (self.ddim_steps - self.ft_denoising_steps))
+            ft_indices = tf.identity(index >= (self.ddim_steps - self.ft_denoising_steps))
         else:
-            ft_indices = (t < self.ft_denoising_steps)
+            ft_indices = tf.identity(t < self.ft_denoising_steps)
 
         # Use base policy to query expert model, e.g. for imitation loss
         # actor = self.actor if use_base_policy else self.actor_ft
 
         # overwrite noise for fine-tuning steps
         # if tf.reduce_sum(tf.cast(ft_indices, tf.int32)) > 0:
-        if tf.identity(ft_indices)[0] == True:
+        if ft_indices[0] == True:
             cond_ft = {key: cond[key][ft_indices] for key in cond}
             # noise_ft = actor(x[ft_indices], t[ft_indices], cond=cond_ft)
             if use_base_policy:
