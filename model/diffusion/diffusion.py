@@ -110,6 +110,7 @@ class DiffusionModel(tf.keras.Model):
         #     f"Number of network parameters: {np.sum([np.prod(v.shape) for v in self.network.trainable_variables])}"
         # )
 
+    @tf.function
     def p_mean_var(self, x, t, cond, index=None, network_override=None):
         noise = network_override(x, t, cond=cond) if network_override else self.network(x, t, cond=cond)
 

@@ -62,8 +62,11 @@ class DiffusionMLP(tf.keras.Model):
         )
         self.time_dim = time_dim
 
+    @tf.function
     def call(self, x, time, cond, **kwargs):
-        B, Ta, Da = x.shape
+        # B, Ta, Da = x.shape
+        B = tf.shape(x)[0] if x.shape[0] is None else x.shape[0]
+        Ta, Da = self.horizon_steps, self.action_dim
 
         # flatten chunk
         x = tf.reshape(x, [B, -1])

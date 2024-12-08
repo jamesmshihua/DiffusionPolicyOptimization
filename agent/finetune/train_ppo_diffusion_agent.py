@@ -109,7 +109,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
 
                 # Select action
                 cond = {
-                    "state": tf.identity(tf.convert_to_tensor(prev_obs_venv["state"], dtype=tf.float32))
+                    "state": tf.convert_to_tensor(prev_obs_venv["state"], dtype=tf.float32)
                 }
                 samples = self.model(
                     cond=cond,

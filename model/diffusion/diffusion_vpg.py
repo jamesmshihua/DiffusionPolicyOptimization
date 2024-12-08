@@ -148,6 +148,7 @@ class VPGDiffusion(DiffusionModel):
             return self.min_sampling_denoising_std()
 
     # override
+    @tf.function
     def p_mean_var(
         self,
         x,
@@ -240,11 +241,12 @@ class VPGDiffusion(DiffusionModel):
                 + extract(self.ddpm_mu_coef2, t, x.shape) * x
             )
             logvar = extract(self.ddpm_logvar_clipped, t, x.shape)
-            etas = tf.identity(tf.ones_like(mu))  # always one for DDPM
+            etas = tf.ones_like(mu)  # always one for DDPM
         return mu, logvar, etas
 
     # override
     # @torch.no_grad()
+    @tf.function
     def call(
         self,
         cond,
@@ -275,9 +277,7 @@ class VPGDiffusion(DiffusionModel):
         min_sampling_denoising_std = self.get_min_sampling_denoising_std()
 
         # Loop
-        x = tf.identity(
-            tf.random.normal((B, self.horizon_steps, self.action_dim))
-        )
+        x = tf.random.normal((B, self.horizon_steps, self.action_dim))
         if self.use_ddim:
             t_all = self.ddim_t
         else:
@@ -305,18 +305,18 @@ class VPGDiffusion(DiffusionModel):
                 if deterministic:
                     std = tf.zeros_like(std)
                 else:
-                    std = tf.clip_by_value(std, clip_value_min=min_sampling_denoising_std, clip_value_max=1e6)
+                    std = tf.clip_by_value(std, min_sampling_denoising_std, 1e6)
             else:
                 if deterministic and t == 0:
                     std = tf.zeros_like(std)
                 elif deterministic:  # still keep the original noise
-                    std = tf.clip_by_value(std, clip_value_min=1e-3, clip_value_max=1e6)
+                    std = tf.clip_by_value(std, 1e-3, 1e6)
                 else:  # use higher minimum noise
-                    std = tf.clip_by_value(std, clip_value_min=min_sampling_denoising_std, clip_value_max=1e6)
+                    std = tf.clip_by_value(std, min_sampling_denoising_std, 1e6)
             # noise = tf.randn_like(x).clamp_(
             #     -self.randn_clip_value, self.randn_clip_value
             # )
-            noise = tf.clip_by_value(tf.random.normal(x.shape), clip_value_min=-self.randn_clip_value, clip_value_max=self.randn_clip_value)
+            noise = tf.clip_by_value(tf.random.normal(tf.shape(x)), -self.randn_clip_value, self.randn_clip_value)
             x = mean + std * noise
 
             # clamp action at final step
@@ -324,7 +324,7 @@ class VPGDiffusion(DiffusionModel):
                 # x = torch.clamp(
                 #     x, -self.final_action_clip_value, self.final_action_clip_value
                 # )
-                x = tf.clip_by_value(x, clip_value_min=-self.final_action_clip_value, clip_value_max=self.final_action_clip_value)
+                x = tf.clip_by_value(x, -self.final_action_clip_value, self.final_action_clip_value)
 
             if return_chain:
                 if not self.use_ddim and t <= self.ft_denoising_steps:
