@@ -83,6 +83,7 @@ class MLP(tf.keras.Model):
         if verbose:
             print("MLP Layer Structure:", self.module_list)
 
+    @tf.function
     def call(self, x, append=None):
         for layer_ind, layer in enumerate(self.module_list):
             if append is not None and layer_ind in self.append_layers:
@@ -137,6 +138,7 @@ class ResidualMLP(tf.keras.Model):
 
         self.out_activation = activation_dict[out_activation_type]
 
+    @tf.function
     def call(self, x, **kwargs):
         # Pass through the input layer
         x = self.input_layer(x)
