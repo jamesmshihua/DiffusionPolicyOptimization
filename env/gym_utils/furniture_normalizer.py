@@ -5,7 +5,6 @@ TODO: use this normalizer for all benchmarks.
 
 """
 
-import tensorflow as tf
 
 class LinearNormalizer(nn.Module):
     def __init__(self):

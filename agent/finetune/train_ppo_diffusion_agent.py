@@ -129,7 +129,7 @@ class TrainPPODiffusionAgent(TrainPPOAgent):
                     )  # n_envs x act_steps x obs_dim
                     obs_full_trajs = np.vstack((obs_full_trajs, obs_full_venv.transpose(1, 0, 2)))
                 obs_trajs["state"][step] = prev_obs_venv["state"]
-                chains_trajs[step] = chains_venv
+                chains_trajs[step] = chains_venv  # tensor
                 reward_trajs[step] = reward_venv
                 terminated_trajs[step] = terminated_venv
                 firsts_trajs[step + 1] = done_venv
