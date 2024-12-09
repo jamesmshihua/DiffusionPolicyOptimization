@@ -11,6 +11,8 @@ cd dppo
 ```console
 conda create -n dppo python=3.12 -y
 conda activate dppo
+pip install 'tensorflow[and-cuda]'
+pip install tensorflow-probability tf-keras tf-agents
 pip install -e .[gym]
 ```
 
@@ -44,6 +46,6 @@ Two configuration files can be found under `cfg/<env>/finetune/`. A new WandB pr
 # Gym - hopper/walker2d/halfcheetah (debug)
 python script/run.py --config-name=ft_ppo_diffusion_mlp --config-dir=cfg/gym/finetune/hopper-v2
 
-# Gym - hopper/walker2d/halfcheetah (run)
+# Gym - hopper/walker2d/halfcheetah (optimized run)
 python script/run.py --config-name=ft_ppo_diffusion_mlp_run --config-dir=cfg/gym/finetune/hopper-v2
 ```
